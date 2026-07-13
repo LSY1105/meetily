@@ -1,30 +1,35 @@
 // Benchmark runner. Iterates the corpus, dispatches each sample through every
-// adapter, computes WER + CER against ground truth, and writes a CSV.
+// enabled adapter, computes WER + CER against ground truth, and writes CSV.
 //
 // Usage:
 //   tsx scripts/asr_bench/runner.ts --mock
+//   tsx scripts/asr_bench/runner.ts --provider=localWhisper,parakeet
 //
-// PR-38a only supports the mock adapter. PR-38b will add the 6 real provider
-// adapters and the corpus download path.
+// PR-38b supports mock + localWhisper + parakeet. Cloud providers
+// (deepgram/groq/openai/elevenlabs) land in PR-38c.
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { wer } from "./wer";
 import { MockAdapter } from "./adapters/mock";
+import { LocalWhisperAdapter } from "./adapters/local_whisper";
+import { ParakeetAdapter } from "./adapters/parakeet";
 import type { BenchRow, CorpusSample, ProviderAdapter } from "./adapters/types";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CORPUS_PATH = resolve(HERE, "corpus", "corpus_manifest.json");
 
 interface CliArgs {
-  mock: boolean;
+  providers: string[];
   out: string;
 }
 
 function parseArgs(argv: string[]): CliArgs {
   const out = argv.includes("--out") ? argv[argv.indexOf("--out") + 1] : "bench_results/baseline.csv";
-  return { mock: argv.includes("--mock"), out };
+  const providerFlag = argv.find((a) => a.startsWith("--provider="));
+  const providers = providerFlag ? providerFlag.slice("--provider=".length).split(",") : [];
+  return { providers, out };
 }
 
 function loadCorpus(): CorpusSample[] {
@@ -47,13 +52,14 @@ function loadCorpus(): CorpusSample[] {
         language: "zh",
         type: "small-group",
         durationSec: 45,
-        groundTruth: "´ó¼ÒºÃ ½ñÌìÎÒÃÇÌÖÂÛÒ»ÏÂ²úÆ·Â·ÏßÍ¼ Çë´ó¼ÒÏÈ¿´ÆÁÄ»ÉÏµÄÊ±¼äÏß",
+        groundTruth: "ï¿½ï¿½Òºï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ò»ï¿½Â²ï¿½Æ·Â·ï¿½ï¿½Í¼ ï¿½ï¿½ï¿½ï¿½ï¿½È¿ï¿½ï¿½ï¿½Ä»ï¿½Ïµï¿½Ê±ï¿½ï¿½ï¿½ï¿½",
       },
     ];
   }
-  const raw = JSON.parse(readFileSync(CORPUS_PATH, "utf8")) as CorpusSample[];
+  const raw = JSON.parse(readFileSync(CORPUS_PATH, "utf8")) as (CorpusSample & { groundTruth?: string })[];
   return raw.map((s) => {
-    if (s.truthPath && existsSync(resolve(HERE, "corpus", s.truthPath))) {
+    if (s.groundTruth) return s;
+    if (s.truthPath && s.truthPath !== "(inline)" && existsSync(resolve(HERE, "corpus", s.truthPath))) {
       const groundTruth = readFileSync(resolve(HERE, "corpus", s.truthPath), "utf8");
       return { ...s, groundTruth };
     }
@@ -62,8 +68,14 @@ function loadCorpus(): CorpusSample[] {
 }
 
 function buildAdapters(args: CliArgs): ProviderAdapter[] {
-  if (args.mock) return [new MockAdapter({ deterministic: true })];
-  return [];
+  const wantsMock = args.providers.length === 0 || args.providers.includes("mock");
+  const wantsLocalWhisper = args.providers.includes("localWhisper");
+  const wantsParakeet = args.providers.includes("parakeet");
+  const adapters: ProviderAdapter[] = [];
+  if (wantsMock) adapters.push(new MockAdapter({ deterministic: true }));
+  if (wantsLocalWhisper) adapters.push(new LocalWhisperAdapter());
+  if (wantsParakeet) adapters.push(new ParakeetAdapter());
+  return adapters;
 }
 
 function ensureDir(filePath: string): void {
@@ -109,14 +121,19 @@ export async function runBenchmark(args: CliArgs): Promise<BenchRow[]> {
   const corpus = loadCorpus();
   const adapters = buildAdapters(args);
   if (adapters.length === 0) {
-    throw new Error("no adapters enabled; pass --mock for dry-run or implement PR-38b adapters");
+    throw new Error("no adapters enabled; pass --provider=mock,localWhisper,parakeet");
   }
-  if (corpus.some((s) => !s.groundTruth)) {
-    throw new Error("corpus samples missing groundTruth; populate truth files first");
+  const ready = corpus.filter((s) => !!s.groundTruth);
+  const skipped = corpus.length - ready.length;
+  if (skipped > 0) {
+    console.warn("skipping " + skipped + " samples without groundTruth (download corpus to enable)");
+  }
+  if (ready.length === 0) {
+    throw new Error("no corpus samples ready; populate truth files or run --mock");
   }
   const rows: BenchRow[] = [];
   for (const adapter of adapters) {
-    for (const sample of corpus) {
+    for (const sample of ready) {
       const result = await adapter.transcribe(sample.audioPath, sample.language, {
         groundTruth: sample.groundTruth,
       });

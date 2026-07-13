@@ -1,0 +1,6 @@
+audio/
+truth/
+*.wav
+*.tar.gz
+*.tar
+*.zip
