@@ -69,7 +69,11 @@
   "transcript": {
     "title": "전사 설정",
     "model_label": "전사 모델",
-    "select_provider": "공급자 선택"
+    "select_provider": "공급자 선택",
+    "hotwords_label": "핫워드(쉼표 구분)",
+    "hotwords_placeholder": "예: Acme, ProjectX, 김철수",
+    "hotwords_help": "고유명사/전문 용어의 인식률을 높입니다.",
+    "hotwords_counter": "{count} / {max} 자"
   },
   "summary": {
     "language": {

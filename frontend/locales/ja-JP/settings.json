@@ -69,7 +69,11 @@
   "transcript": {
     "title": "文字起こし設定",
     "model_label": "文字起こしモデル",
-    "select_provider": "プロバイダーを選択"
+    "select_provider": "プロバイダーを選択",
+    "hotwords_label": "ホットワード（カンマ区切り）",
+    "hotwords_placeholder": "例: Acme, ProjectX, 田中",
+    "hotwords_help": "固有名詞・専門用語の認識率を向上します。",
+    "hotwords_counter": "{count} / {max} 文字"
   },
   "summary": {
     "language": {

@@ -8,12 +8,15 @@ import { Label } from './ui/label';
 import { Eye, EyeOff, Lock, Unlock } from 'lucide-react';
 import { ModelManager } from './WhisperModelManager';
 import { ParakeetModelManager } from './ParakeetModelManager';
+import { HotwordsInput } from './HotwordsInput';
 
 
 export interface TranscriptModelProps {
     provider: 'localWhisper' | 'parakeet' | 'deepgram' | 'elevenLabs' | 'groq' | 'openai';
     model: string;
     apiKey?: string | null;
+    /** Comma-separated hotwords for ASR (proper nouns, jargon). Max 1000 chars. */
+    hotwords?: string | null;
 }
 
 export interface TranscriptSettingsProps {
@@ -174,6 +177,15 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                         </div>
                     )}
 
+
+                    {/* Hotwords - boosts proper-noun / jargon recognition (Wave 10 PR-40) */}
+                    <div>
+                        <HotwordsInput
+                            value={transcriptModelConfig.hotwords ?? ""}
+                            onChange={(next) => setTranscriptModelConfig({ ...transcriptModelConfig, hotwords: next })}
+                            maxChars={1000}
+                        />
+                    </div>
 
                     {requiresApiKey && (
                         <div>

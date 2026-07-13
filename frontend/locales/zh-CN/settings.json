@@ -69,7 +69,11 @@
   "transcript": {
     "title": "转写设置",
     "model_label": "转写模型",
-    "select_provider": "选择提供方"
+    "select_provider": "选择提供方",
+    "hotwords_label": "热词（逗号分隔）",
+    "hotwords_placeholder": "例如：阿里、字节、张三",
+    "hotwords_help": "提升专有名词 / 行业术语的识别准确率。",
+    "hotwords_counter": "{count} / {max} 字符"
   },
   "summary": {
     "language": {
