@@ -9,6 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { RecordingStatusBar } from "./RecordingStatusBar";
 import { motion, AnimatePresence } from "framer-motion";
 import { TranscriptSegmentData } from "@/types";
+import { useTranslations } from "next-intl";
 
 export interface VirtualizedTranscriptViewProps {
     /** Transcript segments to display */
@@ -71,6 +72,9 @@ const TranscriptSegment = memo(function TranscriptSegment({
     confidence,
     isStreaming,
     showConfidence,
+    speaker,
+    speakerLabelTemplate,
+    speakerUnknown,
 }: {
     id: string;
     timestamp: number;
@@ -78,6 +82,9 @@ const TranscriptSegment = memo(function TranscriptSegment({
     confidence?: number;
     isStreaming: boolean;
     showConfidence: boolean;
+    speaker?: string | null;
+    speakerLabelTemplate: string;
+    speakerUnknown: string;
 }) {
     const displayText = cleanStopWords(text) || (text.trim() === '' ? '[Silence]' : text);
 
@@ -96,6 +103,11 @@ const TranscriptSegment = memo(function TranscriptSegment({
                         )}
                     </TooltipContent>
                 </Tooltip>
+                {speaker && (
+                    <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded mt-1 flex-shrink-0">
+                        {speaker === speakerUnknown ? speakerUnknown : speakerLabelTemplate.replace("{id}", speaker)}
+                    </span>
+                )}
                 <div className="flex-1">
                     {isStreaming ? (
                         <div className="bg-gray-100 border border-gray-200 rounded-lg px-3 py-2">
@@ -129,6 +141,11 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
     const scrollRef = useRef<HTMLDivElement>(null);
     // Ref for infinite scroll trigger element
     const loadMoreTriggerRef = useRef<HTMLDivElement>(null);
+
+    // Speaker label translations (PR-41a diarization skeleton)
+    const t = useTranslations("settings");
+    const speakerLabelTemplate = t("transcript.speaker_label");
+    const speakerUnknown = t("transcript.speaker_unknown");
 
     // Force re-render without flushSync (avoids React warning)
     const [, rerender] = useReducer((x: number) => x + 1, 0);
@@ -290,13 +307,16 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                     }}
                                 >
                                     <TranscriptSegment
-                                        id={segment.id}
-                                        timestamp={segment.timestamp}
-                                        text={getDisplayText(segment)}
-                                        confidence={segment.confidence}
-                                        isStreaming={isStreaming}
-                                        showConfidence={showConfidence}
-                                    />
+                                    id={segment.id}
+                                    timestamp={segment.timestamp}
+                                    text={getDisplayText(segment)}
+                                    confidence={segment.confidence}
+                                    isStreaming={isStreaming}
+                                    showConfidence={showConfidence}
+                                    speaker={segment.speaker}
+                                    speakerLabelTemplate={speakerLabelTemplate}
+                                    speakerUnknown={speakerUnknown}
+                                />
                                 </div>
                             );
                         })}
@@ -352,6 +372,9 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                         confidence={segment.confidence}
                                         isStreaming={isStreaming}
                                         showConfidence={showConfidence}
+                                        speaker={segment.speaker}
+                                        speakerLabelTemplate={speakerLabelTemplate}
+                                        speakerUnknown={speakerUnknown}
                                     />
                                 </motion.div>
                             );

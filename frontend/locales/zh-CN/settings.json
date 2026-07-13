@@ -67,7 +67,9 @@
   "transcript": {
     "title": "转写设置",
     "model_label": "转写模型",
-    "select_provider": "选择提供方"
+    "select_provider": "选择提供方",
+    "speaker_label": "说话人",
+    "speaker_unknown": "未知说话人"
   },
   "summary": {
     "language": {

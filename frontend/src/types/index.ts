@@ -107,4 +107,6 @@ export interface TranscriptSegmentData {
   endTime?: number; // audio_end_time in seconds
   text: string;
   confidence?: number;
+  /** Speaker label for diarization. Optional: undefined = unlabeled (PR-41a). */
+  speaker?: string | null;
 }
