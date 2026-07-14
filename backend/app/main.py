@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import uvicorn
-from typing import Optional, List
+from typing import List,  Optional, List
 import logging
 from dotenv import load_dotenv
 from db import DatabaseManager
@@ -106,6 +106,24 @@ class TranscriptRequest(BaseModel):
     chunk_size: Optional[int] = 5000
     overlap: Optional[int] = 1000
     custom_prompt: Optional[str] = "Generate a summary of the meeting transcript."
+
+
+class PostprocessRequest(BaseModel):
+    """Request model for LLM transcript correction (Wave 12 PR-42-ii-b)."""
+    text: str
+    enabled: Optional[bool] = True
+    provider: Optional[str] = "claude"
+    model_name: Optional[str] = "claude-3-5-sonnet-latest"
+    custom_hotwords: Optional[List[str]] = []
+    chunk_size: Optional[int] = 4000
+    overlap: Optional[int] = 200
+
+
+class PostprocessResponse(BaseModel):
+    """Response model for LLM transcript correction."""
+    corrected_text: str
+    applied: bool
+    error: Optional[str] = None
 
 class SummaryProcessor:
     """Handles the processing of summaries in a thread-safe way"""
@@ -364,6 +382,45 @@ async def process_transcript_api(
     except Exception as e:
         logger.error(f"Error in process_transcript_api: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/postprocess-transcript", response_model=PostprocessResponse)
+async def postprocess_transcript_api(request: PostprocessRequest):
+    """Apply LLM correction to a transcript (Wave 12 PR-42-ii-b).
+
+    Graceful: any failure returns the original text with applied=False.
+    """
+    from transcript_postprocess import PostprocessConfig, postprocess_transcript
+
+    try:
+        provider = (request.provider or "claude").lower()
+        if provider not in ("claude", "groq", "openai", "ollama"):
+            return PostprocessResponse(
+                corrected_text=request.text,
+                applied=False,
+                error=f"unsupported provider: {provider}",
+            )
+        cfg = PostprocessConfig(
+            enabled=request.enabled if request.enabled is not None else True,
+            provider=provider,  # type: ignore[arg-type]
+            model_name=request.model_name or "claude-3-5-sonnet-latest",
+            custom_hotwords=request.custom_hotwords or [],
+            chunk_size=request.chunk_size or 4000,
+            overlap=request.overlap or 200,
+        )
+        corrected = await postprocess_transcript(request.text, config=cfg)
+        return PostprocessResponse(
+            corrected_text=corrected,
+            applied=(corrected != request.text),
+            error=None,
+        )
+    except Exception as e:
+        logger.error("postprocess_transcript_api failed: %s", e, exc_info=True)
+        return PostprocessResponse(
+            corrected_text=request.text,
+            applied=False,
+            error=str(e)[:500],
+        )
+
 
 @app.get("/get-summary/{meeting_id}")
 async def get_summary(meeting_id: str):
