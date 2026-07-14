@@ -255,5 +255,17 @@
   },
   "notes": {
     "not_found": "Note not found"
+  },
+  "highlight": {
+    "title": "Transcript Highlight",
+    "description": "Auto-color numbers, dates, proper nouns, and your custom keywords in the transcript view.",
+    "enable_label": "Enable highlight",
+    "custom_label": "Custom keywords (comma-separated)",
+    "custom_placeholder": "Acme, ProjectX, Q3",
+    "custom_help": "Highlighted in addition to the auto-detected categories.",
+    "legend_number": "Number: 1,234 / 50% / ¥100 / 百分之二十",
+    "legend_date": "Date / time: 2026-07-14 / 明天 / 下周三",
+    "legend_proper": "Proper noun: Acme / ProjectX (English only)",
+    "legend_custom": "Custom: from your keyword list above"
   }
 }

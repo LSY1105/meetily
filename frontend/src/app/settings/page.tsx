@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
+import { HighlightSettings } from '@/components/HighlightSettings';
+import { DEFAULT_HIGHLIGHT_CONFIG } from '@/lib/transcriptHighlight';
 import { ArrowLeft, Settings2, Mic, Database as DatabaseIcon, SparkleIcon, FlaskConical } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { invoke } from '@tauri-apps/api/core';
@@ -26,6 +28,7 @@ const TAB_DEFS = [
 export default function SettingsPage() {
   const router = useRouter();
   const { transcriptModelConfig, setTranscriptModelConfig } = useConfig();
+  const [highlightConfigState, setHighlightConfigState] = useState(DEFAULT_HIGHLIGHT_CONFIG);
   const tSettings = useTranslations('settings');
 
   // Animation state for tabs
@@ -121,6 +124,10 @@ export default function SettingsPage() {
               <TranscriptSettings
                 transcriptModelConfig={transcriptModelConfig}
                 setTranscriptModelConfig={setTranscriptModelConfig}
+              />
+              <HighlightSettings
+                config={highlightConfigState}
+                setConfig={setHighlightConfigState}
               />
             </TabsContent>
             <TabsContent value="summaryModels">

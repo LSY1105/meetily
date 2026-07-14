@@ -9,6 +9,7 @@ import { useTranslations } from 'next-intl';
 
 interface TranscriptPanelProps {
   transcripts: Transcript[];
+  highlightConfig?: import("@/lib/transcriptHighlight").HighlightConfig;
   customPrompt: string;
   onPromptChange: (value: string) => void;
   onCopyTranscript: () => void;
@@ -33,6 +34,7 @@ interface TranscriptPanelProps {
 
 export function TranscriptPanel({
   transcripts,
+  highlightConfig,
   customPrompt,
   onPromptChange,
   onCopyTranscript,
@@ -96,7 +98,9 @@ export function TranscriptPanel({
           totalCount={totalCount}
           loadedCount={loadedCount}
           onLoadMore={onLoadMore}
-        />
+        
+              highlightConfig={highlightConfig}
+            />
       </div>
 
       {/* Custom prompt input at bottom of transcript section */}

@@ -255,5 +255,17 @@
   },
   "notes": {
     "not_found": "找不到筆記"
+  },
+  "highlight": {
+    "title": "轉寫高亮",
+    "description": "自動標記數字、日期、專有名詞和自訂關鍵字。",
+    "enable_label": "啟用高亮",
+    "custom_label": "自訂關鍵字（逗號分隔）",
+    "custom_placeholder": "阿里、字節、Q3",
+    "custom_help": "在自動辨識類別之外，額外高亮這些詞。",
+    "legend_number": "數字：1,234 / 50% / ¥100 / 百分之二十",
+    "legend_date": "日期 / 時間：2026-07-14 / 明天 / 下週三",
+    "legend_proper": "專有名詞：Acme / ProjectX（僅英文）",
+    "legend_custom": "自訂：上面關鍵字清單中的詞"
   }
 }

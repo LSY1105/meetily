@@ -9,10 +9,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { RecordingStatusBar } from "./RecordingStatusBar";
 import { motion, AnimatePresence } from "framer-motion";
 import { TranscriptSegmentData } from "@/types";
+import { tokenize, HIGHLIGHT_CLASSES, DEFAULT_HIGHLIGHT_CONFIG, HighlightConfig } from "@/lib/transcriptHighlight";
 
 export interface VirtualizedTranscriptViewProps {
     /** Transcript segments to display */
     segments: TranscriptSegmentData[];
+    /** Optional highlight configuration (Wave 14 PR-44a). */
+    highlightConfig?: HighlightConfig;
     /** Whether recording is in progress */
     isRecording?: boolean;
     /** Whether recording is paused */
@@ -71,6 +74,7 @@ const TranscriptSegment = memo(function TranscriptSegment({
     confidence,
     isStreaming,
     showConfidence,
+    highlightConfig,
 }: {
     id: string;
     timestamp: number;
@@ -78,8 +82,9 @@ const TranscriptSegment = memo(function TranscriptSegment({
     confidence?: number;
     isStreaming: boolean;
     showConfidence: boolean;
+    highlightConfig?: HighlightConfig;
 }) {
-    const displayText = cleanStopWords(text) || (text.trim() === '' ? '[Silence]' : text);
+    const tokens = tokenize(text, highlightConfig ?? DEFAULT_HIGHLIGHT_CONFIG);
 
     return (
         <div id={`segment-${id}`} className="mb-3">
@@ -99,10 +104,22 @@ const TranscriptSegment = memo(function TranscriptSegment({
                 <div className="flex-1">
                     {isStreaming ? (
                         <div className="bg-gray-100 border border-gray-200 rounded-lg px-3 py-2">
-                            <p className="text-base text-gray-800 leading-relaxed">{displayText}</p>
+                            <p className="text-base text-gray-800 leading-relaxed">
+                                {tokens.map((tok, i) => tok.category ? (
+                                    <mark key={i} className={HIGHLIGHT_CLASSES[tok.category]}>{tok.text}</mark>
+                                ) : (
+                                    <span key={i}>{tok.text}</span>
+                                ))}
+                            </p>
                         </div>
                     ) : (
-                        <p className="text-base text-gray-800 leading-relaxed">{displayText}</p>
+                        <p className="text-base text-gray-800 leading-relaxed">
+                            {tokens.map((tok, i) => tok.category ? (
+                                <mark key={i} className={HIGHLIGHT_CLASSES[tok.category]}>{tok.text}</mark>
+                            ) : (
+                                <span key={i}>{tok.text}</span>
+                            ))}
+                        </p>
                     )}
                 </div>
             </div>
@@ -112,6 +129,7 @@ const TranscriptSegment = memo(function TranscriptSegment({
 
 export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps> = ({
     segments,
+    highlightConfig,
     isRecording = false,
     isPaused = false,
     isProcessing = false,
@@ -296,6 +314,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                         confidence={segment.confidence}
                                         isStreaming={isStreaming}
                                         showConfidence={showConfidence}
+                                        highlightConfig={highlightConfig}
                                     />
                                 </div>
                             );
@@ -352,7 +371,8 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                         confidence={segment.confidence}
                                         isStreaming={isStreaming}
                                         showConfidence={showConfidence}
-                                    />
+                                                                           highlightConfig={highlightConfig}
+ />
                                 </motion.div>
                             );
                         })}
