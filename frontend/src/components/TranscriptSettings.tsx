@@ -14,6 +14,13 @@ export interface TranscriptModelProps {
     provider: 'localWhisper' | 'parakeet' | 'deepgram' | 'elevenLabs' | 'groq' | 'openai';
     model: string;
     apiKey?: string | null;
+    /** LLM postprocess config (Wave 12 PR-42-ii). Optional. */
+    postprocess?: {
+        enabled: boolean;
+        provider: 'claude' | 'groq' | 'openai' | 'ollama';
+        model_name: string;
+        custom_hotwords: string;
+    };
 }
 
 export interface TranscriptSettingsProps {

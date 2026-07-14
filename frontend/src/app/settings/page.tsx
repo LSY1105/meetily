@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { invoke } from '@tauri-apps/api/core';
 import { motion } from 'framer-motion';
 import { TranscriptSettings } from '@/components/TranscriptSettings';
+import { PostprocessSettings, DEFAULT_POSTPROCESS_CONFIG } from '@/components/PostprocessSettings';
 import { RecordingSettings } from '@/components/RecordingSettings';
 import { PreferenceSettings } from '@/components/PreferenceSettings';
 import { SummaryModelSettings } from '@/components/SummaryModelSettings';
@@ -26,6 +27,9 @@ const TAB_DEFS = [
 export default function SettingsPage() {
   const router = useRouter();
   const { transcriptModelConfig, setTranscriptModelConfig } = useConfig();
+  const postprocessConfig = transcriptModelConfig.postprocess ?? DEFAULT_POSTPROCESS_CONFIG;
+  const setPostprocessConfig = (cfg: typeof postprocessConfig) =>
+    setTranscriptModelConfig({ ...transcriptModelConfig, postprocess: cfg });
   const tSettings = useTranslations('settings');
 
   // Animation state for tabs
@@ -121,6 +125,10 @@ export default function SettingsPage() {
               <TranscriptSettings
                 transcriptModelConfig={transcriptModelConfig}
                 setTranscriptModelConfig={setTranscriptModelConfig}
+              />
+              <PostprocessSettings
+                config={postprocessConfig}
+                setConfig={setPostprocessConfig}
               />
             </TabsContent>
             <TabsContent value="summaryModels">

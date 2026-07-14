@@ -255,5 +255,15 @@
   },
   "notes": {
     "not_found": "找不到筆記"
+  },
+  "postprocess": {
+    "title": "轉寫後處理（LLM 校正）",
+    "description": "使用 LLM 校正 ASR 輸出：同音字 / 標點 / 段落 / 專有名詞",
+    "enable_label": "啟用 LLM 後處理",
+    "provider_label": "LLM 提供方",
+    "model_label": "模型",
+    "hotwords_label": "優先熱詞",
+    "hotwords_placeholder": "例如：阿里、字節、張三",
+    "hotwords_help": "提示 LLM 優先修正這些詞的拼寫。"
   }
 }

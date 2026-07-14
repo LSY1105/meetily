@@ -255,5 +255,15 @@
   },
   "notes": {
     "not_found": "Note not found"
+  },
+  "postprocess": {
+    "title": "Transcript Postprocess (LLM Correction)",
+    "description": "Use an LLM to correct ASR output: homophones, punctuation, paragraph breaks, proper nouns.",
+    "enable_label": "Enable LLM postprocess",
+    "provider_label": "LLM Provider",
+    "model_label": "Model name",
+    "hotwords_label": "Priority hotwords",
+    "hotwords_placeholder": "e.g. Acme, ProjectX, Zhang San",
+    "hotwords_help": "Hint to the LLM to prioritise fixing these terms."
   }
 }
