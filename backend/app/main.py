@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -82,9 +83,13 @@ class DeleteMeetingRequest(BaseModel):
     meeting_id: str
 
 class SaveTranscriptRequest(BaseModel):
-    meeting_title: str
+    meeting_title: str = ""
     transcripts: List[Transcript]
     folder_path: Optional[str] = None  # NEW: Path to meeting folder (for new folder structure)
+    # PR-43a: optional meeting_id reuse + batch index tracking
+    meeting_id: Optional[str] = None
+    batch_index: Optional[int] = None
+    is_final_batch: Optional[bool] = None
 
 class SaveModelConfigRequest(BaseModel):
     provider: str
@@ -510,21 +515,35 @@ async def get_summary(meeting_id: str):
 
 @app.post("/save-transcript")
 async def save_transcript(request: SaveTranscriptRequest):
-    """Save transcript segments for a meeting without processing"""
+    """Save transcript segments for a meeting without processing.
+
+    Backward compatible: when request.meeting_id is empty, creates a new meeting
+    and assigns a fresh meeting_id (legacy behavior). When meeting_id is supplied,
+    reuses the existing meeting and appends segments (PR-43a batch mode).
+    """
     try:
-        logger.info(f"Received save-transcript request for meeting: {request.meeting_title}")
+        logger.info(f"Received save-transcript request (meeting_id={request.meeting_id}, batch_index={request.batch_index})")
         logger.info(f"Number of transcripts to save: {len(request.transcripts)}")
 
-        # Log first transcript timestamps for debugging
-        if request.transcripts:
-            first = request.transcripts[0]
-            logger.debug(f"First transcript: audio_start_time={first.audio_start_time}, audio_end_time={first.audio_end_time}, duration={first.duration}")
+        # PR-43a: enforce batch size limit (default 500)
+        try:
+            max_batch = int(os.environ.get("MEETILY_MAX_BATCH_SEGMENTS", "500"))
+        except ValueError:
+            max_batch = 500
+        if len(request.transcripts) > max_batch:
+            raise HTTPException(
+                status_code=413,
+                detail=f"batch too large: {len(request.transcripts)} segments > limit {max_batch}",
+            )
 
-        # Generate a unique meeting ID
-        meeting_id = f"meeting-{int(time.time() * 1000)}"
-
-        # Save the meeting with folder path (if provided)
-        await db.save_meeting(meeting_id, request.meeting_title, folder_path=request.folder_path)
+        # PR-43a: meeting_id reuse vs creation
+        if request.meeting_id:
+            meeting_id = request.meeting_id
+            logger.debug(f"Appending to existing meeting {meeting_id} (batch_index={request.batch_index})")
+        else:
+            meeting_id = f"meeting-{int(time.time() * 1000)}"
+            logger.debug(f"Created new meeting {meeting_id}")
+            await db.save_meeting(meeting_id, request.meeting_title or "Untitled", folder_path=request.folder_path)
 
         # Save each transcript segment with NEW timestamp fields for playback sync
         for transcript in request.transcripts:
@@ -574,6 +593,56 @@ async def get_transcript_config():
         if transcript_api_key != None:
             transcript_config["apiKey"] = transcript_api_key
     return transcript_config
+
+@app.post("/save-transcript-batch")
+async def save_transcript_batch(request: SaveTranscriptRequest):
+    """Append-only batch save for large meetings (PR-43a).
+
+    Requires meeting_id; rejects if missing. Used by frontend chunked-save
+    helper. Returns the meeting_id + batch_index of the saved batch so the
+    client can retry the next batch on failure.
+    """
+    if not request.meeting_id:
+        raise HTTPException(status_code=400, detail="meeting_id required for batch save")
+    try:
+        try:
+            max_batch = int(os.environ.get("MEETILY_MAX_BATCH_SEGMENTS", "500"))
+        except ValueError:
+            max_batch = 500
+        if len(request.transcripts) > max_batch:
+            raise HTTPException(
+                status_code=413,
+                detail=f"batch too large: {len(request.transcripts)} segments > limit {max_batch}",
+            )
+
+        logger.info(
+            f"save-transcript-batch: meeting_id={request.meeting_id} "
+            f"batch_index={request.batch_index} count={len(request.transcripts)}"
+        )
+        for transcript in request.transcripts:
+            await db.save_meeting_transcript(
+                meeting_id=request.meeting_id,
+                transcript=transcript.text,
+                timestamp=transcript.timestamp,
+                summary="",
+                action_items="",
+                key_points="",
+                audio_start_time=transcript.audio_start_time,
+                audio_end_time=transcript.audio_end_time,
+                duration=transcript.duration,
+            )
+        return {
+            "status": "success",
+            "meeting_id": request.meeting_id,
+            "saved": len(request.transcripts),
+            "batch_index": request.batch_index or 0,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in save-transcript-batch: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/save-transcript-config")
 async def save_transcript_config(request: SaveTranscriptConfigRequest):

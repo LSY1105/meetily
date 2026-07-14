@@ -255,5 +255,12 @@
   },
   "notes": {
     "not_found": "找不到筆記"
+  },
+  "batch": {
+    "batch_size_label": "分塊儲存閾值",
+    "batch_size_help": "超過此數量的轉寫會分批儲存，避免記憶體溢出。",
+    "batch_saved_progress": "已儲存 {savedSoFar} / {totalCount} 條（批次 {batchIndex}）",
+    "batch_complete": "全部轉寫已儲存",
+    "batch_failed": "批次儲存失敗：{error}"
   }
 }

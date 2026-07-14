@@ -255,5 +255,12 @@
   },
   "notes": {
     "not_found": "Note not found"
+  },
+  "batch": {
+    "batch_size_label": "Batch save threshold",
+    "batch_size_help": "Transcripts above this count are saved in chunks to avoid memory spikes.",
+    "batch_saved_progress": "Saved {savedSoFar} / {totalCount} segments (batch {batchIndex})",
+    "batch_complete": "All segments saved",
+    "batch_failed": "Batch save failed: {error}"
   }
 }

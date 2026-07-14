@@ -255,5 +255,12 @@
   },
   "notes": {
     "not_found": "未找到笔记"
+  },
+  "batch": {
+    "batch_size_label": "分块保存阈值",
+    "batch_size_help": "超过此数量的转写会分批保存，避免内存溢出。",
+    "batch_saved_progress": "已保存 {savedSoFar} / {totalCount} 条（批次 {batchIndex}）",
+    "batch_complete": "全部转写已保存",
+    "batch_failed": "批次保存失败：{error}"
   }
 }
