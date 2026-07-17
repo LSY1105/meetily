@@ -109,4 +109,8 @@ export interface TranscriptSegmentData {
   text: string;
   confidence?: number;
   speaker?: string | null;
+  // PR-42-iii: streaming LLM postprocess result.
+  corrected_text?: string;
+  postprocess_failed?: boolean;
+  postprocess_failed_message?: string;
 }

@@ -5,6 +5,8 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAutoScroll } from "@/hooks/useAutoScroll";
 import { useTranscriptStreaming } from "@/hooks/useTranscriptStreaming";
 import { useHotwords, type HotwordRule } from "@/hooks/useHotwords";
+// PR-42-iii: streaming LLM postprocess events.
+import { useTranscriptPostprocessEvents } from "@/hooks/useTranscriptPostprocessEvents";
 import { wrapHotwords } from "@/lib/wrapHotwords";
 import { toast } from "sonner";
 import { ConfidenceIndicator } from "./ConfidenceIndicator";
@@ -86,6 +88,8 @@ const TranscriptSegment = memo(function TranscriptSegment({
     onSpeakerRename,
     hotwords,
     protectedSet,
+    postprocessFailed,
+    postprocessFailedMessage,
 }: {
     id: string;
     timestamp: number;
@@ -99,6 +103,8 @@ const TranscriptSegment = memo(function TranscriptSegment({
     onSpeakerRename?: (speakerId: string, friendlyName: string) => void;
     hotwords: HotwordRule[];
     protectedSet?: Set<string>;
+    postprocessFailed?: boolean;
+    postprocessFailedMessage?: string;
 }) {
     const t = useTranslations('settings.transcript');
     const handleHotwordCopy = useCallback((value: string) => {
@@ -189,10 +195,10 @@ const TranscriptSegment = memo(function TranscriptSegment({
                 <div className="flex-1">
                     {isStreaming ? (
                         <div className="bg-gray-100 border border-gray-200 rounded-lg px-3 py-2">
-                            <p className="text-base text-gray-800 leading-relaxed">{hotwordNodes}</p>
+                            <p className="text-base text-gray-800 leading-relaxed">{hotwordNodes}{postprocessFailed ? (<span className="ml-1 inline-flex align-baseline text-amber-600" title={postprocessFailedMessage ?? ""} aria-label="LLM postprocess failed">⚠</span>) : null}</p>
                         </div>
                     ) : (
-                        <p className="text-base text-gray-800 leading-relaxed">{hotwordNodes}</p>
+                        <p className="text-base text-gray-800 leading-relaxed">{hotwordNodes}{postprocessFailed ? (<span className="ml-1 inline-flex align-baseline text-amber-600" title={postprocessFailedMessage ?? ""} aria-label="LLM postprocess failed">⚠</span>) : null}</p>
                     )}
                 </div>
             </div>
@@ -258,6 +264,12 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
         isRecording,
         enableStreaming
     );
+    // PR-42-iii: streaming LLM postprocess; corrected text replaces the
+    // streaming typewriter output once it arrives. Failed attempts fall
+    // back to the original text plus an inline failure marker.
+    const postprocess = useTranscriptPostprocessEvents(true);
+    const resolveDisplayText = (segment: TranscriptSegmentData): string =>
+        postprocess.getDisplayText(segment.id, getDisplayText(segment));
 
     // Infinite scroll: IntersectionObserver to trigger loading more
     useEffect(() => {
@@ -387,8 +399,10 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                     <TranscriptSegment
                                         id={segment.id}
                                         timestamp={segment.timestamp}
-                                        text={getDisplayText(segment)}
+                                        text={resolveDisplayText(segment)}
                                         confidence={segment.confidence}
+                                        postprocessFailed={postprocess.hasFailed(segment.id)}
+                                        postprocessFailedMessage={postprocess.getFailedMessage(segment.id)}
                                         isStreaming={isStreaming}
                                         showConfidence={showConfidence}
                                         speaker={segment.speaker}
@@ -449,8 +463,10 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                     <TranscriptSegment
                                         id={segment.id}
                                         timestamp={segment.timestamp}
-                                        text={getDisplayText(segment)}
+                                        text={resolveDisplayText(segment)}
                                         confidence={segment.confidence}
+                                        postprocessFailed={postprocess.hasFailed(segment.id)}
+                                        postprocessFailedMessage={postprocess.getFailedMessage(segment.id)}
                                         isStreaming={isStreaming}
                                         showConfidence={showConfidence}
                                         speaker={segment.speaker}

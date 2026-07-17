@@ -114,6 +114,12 @@ impl RecordingSaver {
         // PR-A: record hotword hits against this segment (fire-and-forget).
         // Errors are swallowed inside the helper so the streaming path never blocks.
         crate::hotword_stats::record_segment(&segment.text);
+        // PR-42-iii: spawn async LLM postprocess; emits transcript-postprocessed
+        // or transcript-postprocess-failed to the frontend. No-op when text is short.
+        crate::llm_postprocess::spawn_segment_postprocess(
+            segment.id.clone(),
+            segment.text.clone(),
+        );
         if let Some(folder) = &self.meeting_folder {
             if let Err(e) = self.write_transcripts_json(folder) {
                 warn!("Failed to write incremental transcript update: {}", e);
