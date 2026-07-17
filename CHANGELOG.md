@@ -20,6 +20,18 @@ lands cleanly into `devtest`. PR-N and short hashes link back to GitHub.
     without burning hundreds of CI minutes per run.
 
 - PR-F (Wave 21): LLM summary prompts now inject the global hotword list as a glossary block, so company names / brand names / jargon survive the LLM summary path without rewriting.
+
+- PR-42-iii (Wave 23): Streaming LLM auto postprocess. Each transcript
+  segment that is long enough (>= 8 CJK chars or >= 20 ASCII chars) is
+  rewritten by the configured LLM provider via
+  summary::llm_client::generate_summary. The corrected text replaces
+  the streaming typewriter output as soon as it arrives; failed
+  rewrites keep the original text and surface an inline failure marker.
+  Providers supported: Ollama / OpenAI / OpenRouter (native) plus
+  DeepSeek / MiniMax / Kimi / 豆包 / Qwen via CustomOpenAI base_url.
+  A new toggle in Settings -> Transcript controls whether the rewrite
+  runs (default on). Hotword glossary is forwarded so protected terms
+  survive the rewrite.
 - PR-A (Wave 22): Hotword hit-rate panel. A new `hotword_hit_stats` table records whole-word case-insensitive hits per hotword during ASR, and a new `HotwordHitStatsPanel` in Settings -> Transcriptionmodels shows hotword + hits + last_hit_at with a relative-time column and stale (>30 days) flag. Entries older than 30 days are cleared by the in-app 30-day rolling cleanup. Streaming recording path is wired; one-shot import / retranscription paths defer to PR-A2.
 
 ### Changed

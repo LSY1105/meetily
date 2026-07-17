@@ -45,6 +45,7 @@ pub mod notifications;
 pub mod ollama;
 pub mod i18n;
 pub mod transcription_preferences;
+pub mod llm_postprocess;
 pub mod hotword_stats;
 pub mod onboarding;
 pub mod openai;
@@ -525,6 +526,7 @@ pub fn run() {
             // streaming and one-shot ASR paths can record per-hotword hits.
             if let Some(state) = _app.try_state::<state::AppState>() {
                 hotword_stats::init(state.db_manager.pool().clone());
+                llm_postprocess::init_app(_app.handle().clone());
             }
 
             // Initialize bundled templates directory for dynamic template discovery

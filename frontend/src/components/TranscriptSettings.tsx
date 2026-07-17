@@ -38,6 +38,10 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
     const [isLoadingHotwords, setIsLoadingHotwords] = useState(true);
     const [isSavingHotwords, setIsSavingHotwords] = useState(false);
     const [hotwordsLoadFailed, setHotwordsLoadFailed] = useState(false);
+    // PR-42-iii: streaming LLM postprocess toggle state.
+    const [autoPostprocessEnabled, setAutoPostprocessEnabled] = useState<boolean>(true);
+    const [isLoadingAutoPostprocess, setIsLoadingAutoPostprocess] = useState(true);
+    const [autoPostprocessLoadFailed, setAutoPostprocessLoadFailed] = useState(false);
   const t = useTranslations('settings');
 
     // Sync uiProvider when backend config changes (e.g., after model selection or initial load)
@@ -73,6 +77,39 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
             active = false;
         };
     }, []);
+    // PR-42-iii: load the auto-LLM-postprocess toggle from
+    // transcription-preferences.json under auto_postprocess_enabled key.
+    useEffect(() => {
+        let active = true;
+        (async () => {
+            try {
+                const { Store } = await import('@tauri-apps/plugin-store');
+                const store = await Store.load('transcription-preferences.json');
+                const value = await store.get<boolean>('auto_postprocess_enabled');
+                if (active) setAutoPostprocessEnabled(value ?? true);
+            } catch (error) {
+                console.error('Failed to load auto_postprocess_enabled:', error);
+                if (active) setAutoPostprocessLoadFailed(true);
+            } finally {
+                if (active) setIsLoadingAutoPostprocess(false);
+            }
+        })();
+        return () => { active = false; };
+    }, []);
+    const handleAutoPostprocessToggle = async (next: boolean) => {
+        const previous = autoPostprocessEnabled;
+        setAutoPostprocessEnabled(next);
+        try {
+            const { Store } = await import('@tauri-apps/plugin-store');
+            const store = await Store.load('transcription-preferences.json');
+            await store.set('auto_postprocess_enabled', next);
+            await store.save();
+        } catch (error) {
+            console.error('Failed to save auto_postprocess_enabled:', error);
+            setAutoPostprocessEnabled(previous);
+            toast.error(t('transcript.auto_postprocess_save_failed'));
+        }
+    };
 
     const hotwordCharCount = Array.from(hotwords).length;
     const isOverHotwordLimit = hotwordCharCount > MAX_HOTWORD_CHARS;
@@ -276,6 +313,32 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                                 {t('transcript.hotwords_load_failed')}
                             </p>
                         )}
+                    {/* PR-42-iii: streaming LLM postprocess toggle */}
+                    <div className="space-y-2 rounded-lg border border-gray-200 p-4 mt-4">
+                        <div className="flex items-start justify-between gap-4">
+                            <div>
+                                <Label htmlFor="transcript-auto-postprocess" className="text-sm font-medium text-gray-900">
+                                    {t('transcript.auto_postprocess_label')}
+                                </Label>
+                                <p className="mt-1 text-sm text-gray-600">
+                                    {t('transcript.auto_postprocess_help')}
+                                </p>
+                            </div>
+                            <input
+                                id="transcript-auto-postprocess"
+                                type="checkbox"
+                                className="h-4 w-4 mt-1"
+                                checked={autoPostprocessEnabled}
+                                onChange={(e) => void handleAutoPostprocessToggle(e.target.checked)}
+                                disabled={isLoadingAutoPostprocess}
+                            />
+                        </div>
+                        {autoPostprocessLoadFailed && (
+                            <p className="text-sm text-red-600">
+                                {t('transcript.auto_postprocess_load_failed')}
+                            </p>
+                        )}
+                    </div>
                     </div>
                     {requiresApiKey && (
                     <div className="mt-4">
