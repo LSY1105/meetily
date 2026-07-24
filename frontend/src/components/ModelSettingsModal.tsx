@@ -29,6 +29,8 @@ import {
 } from '@/components/ui/command';
 import { cn, isOllamaNotInstalledError } from '@/lib/utils';
 import { toast } from 'sonner';
+import { useLLMProviders, type ProviderPreset } from '@/hooks/useLLMProviders';
+import { useTranslations } from 'next-intl';
 
 export interface ModelConfig {
   provider: 'ollama' | 'groq' | 'claude' | 'openai' | 'openrouter' | 'builtin-ai' | 'custom-openai';
@@ -155,6 +157,13 @@ export function ModelSettingsModal({
   const [isCustomOpenAIAdvancedOpen, setIsCustomOpenAIAdvancedOpen] = useState<boolean>(false);
   const [isTestingConnection, setIsTestingConnection] = useState<boolean>(false);
 
+  // PR-46a: provider preset list + post-save inline test result.
+  const { data: providerPresets = [] } = useLLMProviders();
+  const [isTestingAfterSave, setIsTestingAfterSave] = useState<boolean>(false);
+  const [lastTestResult, setLastTestResult] = useState<'ok' | 'fail' | null>(null);
+  const [lastTestMessage, setLastTestMessage] = useState<string>('');
+  const tSettings = useTranslations('settings');
+
   // Combobox state
   const [modelComboboxOpen, setModelComboboxOpen] = useState<boolean>(false);
 
@@ -233,11 +242,16 @@ export function ModelSettingsModal({
     'custom-openai': customOpenAIModel ? [customOpenAIModel] : [], // User specifies model manually
   };
 
-  const requiresApiKey =
+  // PR-46a: drive requiresApiKey from the preset list. The hook ships an
+  // initialData fallback so the lookup always succeeds; the legacy 4-way OR
+  // below is defensive only (in case the preset list ever loses a row).
+  const activePreset = providerPresets.find(p => p.id === modelConfig.provider);
+  const requiresApiKey = activePreset?.requires_api_key ?? (
     modelConfig.provider === 'claude' ||
     modelConfig.provider === 'groq' ||
     modelConfig.provider === 'openai' ||
-    modelConfig.provider === 'openrouter';
+    modelConfig.provider === 'openrouter'
+  );
 
   // Check if Ollama endpoint has changed but models haven't been fetched yet
   const ollamaEndpointChanged = modelConfig.provider === 'ollama' &&
@@ -666,6 +680,28 @@ export function ModelSettingsModal({
     }
 
     onSave(updatedConfig);
+    // PR-46a: best-effort inline probe after a successful save.
+    // Failure here does not roll back the save — user sees both lines
+    // and can re-save after fixing credentials.
+    setLastTestResult(null);
+    setLastTestMessage('');
+    setIsTestingAfterSave(true);
+    try {
+      const result = await invoke<{ ok: boolean; message: string | null }>('test_llm_connection');
+      if (result.ok) {
+        setLastTestResult('ok');
+        setLastTestMessage(result.message ?? tSettings('transcript.llm.test_ok'));
+      } else {
+        setLastTestResult('fail');
+        setLastTestMessage(result.message ?? tSettings('transcript.llm.test_fail', { message: '' }));
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setLastTestResult('fail');
+      setLastTestMessage(tSettings('transcript.llm.test_fail', { message: msg }));
+    } finally {
+      setIsTestingAfterSave(false);
+    }
   };
 
   // Test custom OpenAI connection
@@ -874,13 +910,11 @@ export function ModelSettingsModal({
                 <SelectValue placeholder="Select provider" />
               </SelectTrigger>
               <SelectContent className="max-h-64 overflow-y-auto">
-                <SelectItem value="builtin-ai">Built-in AI (Offline, No API needed)</SelectItem>
-                <SelectItem value="claude">Claude</SelectItem>
-                <SelectItem value="custom-openai">Custom Server (OpenAI)</SelectItem>
-                <SelectItem value="groq">Groq</SelectItem>
-                <SelectItem value="ollama">Ollama</SelectItem>
-                <SelectItem value="openai">OpenAI</SelectItem>
-                <SelectItem value="openrouter">OpenRouter</SelectItem>
+                {providerPresets.map((preset) => (
+                  <SelectItem key={preset.id} value={preset.id}>
+                    {preset.display_name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
 
@@ -1402,6 +1436,20 @@ export function ModelSettingsModal({
         >
           Save
         </Button>
+        {isTestingAfterSave && (
+          <span className="ml-3 text-sm text-muted-foreground self-center">{tSettings('transcript.llm.test_after_save')}</span>
+        )}
+        {!isTestingAfterSave && lastTestResult && (
+          <span
+            className={cn(
+              'ml-3 text-sm self-center',
+              lastTestResult === 'ok' ? 'text-green-600' : 'text-red-600'
+            )}
+            role="status"
+          >
+            {lastTestResult === 'ok' ? '✓ ' : '✗ '}{lastTestMessage}
+          </span>
+        )}
       </div>
     </div>
   );

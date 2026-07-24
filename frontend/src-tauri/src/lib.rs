@@ -48,6 +48,7 @@ pub mod i18n;
 pub mod transcription_preferences;
 pub mod llm_postprocess;
 pub mod llm_diagnostics;
+pub mod llm_provider;
 pub mod hotword_stats;
 pub mod onboarding;
 pub mod openai;
@@ -783,6 +784,7 @@ pub fn run() {
             llm_diagnostics::get_llm_diagnostics,
             llm_diagnostics::clear_llm_diagnostics,
             llm_postprocess::test_llm_connection,
+            llm_provider::list_llm_providers,
             llm_postprocess::retry_segment_postprocess,
             onboarding::save_onboarding_status_cmd,
             onboarding::reset_onboarding_status_cmd,
