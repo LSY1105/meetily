@@ -532,7 +532,7 @@ pub fn run() {
                 hotword_stats::init(state.db_manager.pool().clone());
                 llm_postprocess::init_app(_app.handle().clone());
                 _app.manage(llm_diagnostics::LLMDiagnosticsState::default());
-                let interval = llm_health::get_llm_health_check_interval_secs();
+                let interval = llm_health::load_current_interval(state.db_manager.pool()).await;
                 if interval > 0 {
                     llm_health::start(_app.handle().clone(), interval);
                 }

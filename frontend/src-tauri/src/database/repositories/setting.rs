@@ -345,4 +345,114 @@ impl SettingsRepository {
 
         Ok(())
     }
+
+    // ===== GENERIC KV (app_settings table) =====
+
+    pub async fn get_kv(
+        pool: &SqlitePool,
+        key: &str,
+    ) -> std::result::Result<Option<String>, sqlx::Error> {
+        let row: Option<(String,)> =
+            sqlx::query_as("SELECT value FROM app_settings WHERE key = ?")
+                .bind(key)
+                .fetch_optional(pool)
+                .await?;
+        Ok(row.map(|(v,)| v))
+    }
+
+    pub async fn set_kv(
+        pool: &SqlitePool,
+        key: &str,
+        value: &str,
+    ) -> std::result::Result<(), sqlx::Error> {
+        sqlx::query(
+            r#"
+            INSERT INTO app_settings (key, value, updated_at)
+            VALUES (?, ?, strftime('%s', 'now'))
+            ON CONFLICT(key) DO UPDATE SET
+                value      = excluded.value,
+                updated_at = strftime('%s', 'now')
+            "#,
+        )
+        .bind(key)
+        .bind(value)
+        .execute(pool)
+        .await?;
+        Ok(())
+    }
+
+    #[allow(dead_code)]
+    pub async fn delete_kv(
+        pool: &SqlitePool,
+        key: &str,
+    ) -> std::result::Result<(), sqlx::Error> {
+        sqlx::query("DELETE FROM app_settings WHERE key = ?")
+            .bind(key)
+            .execute(pool)
+            .await?;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    async fn fresh_pool() -> SqlitePool {
+        let pool = sqlx::SqlitePool::connect("sqlite::memory:")
+            .await
+            .expect("connect in-memory sqlite");
+        sqlx::query(
+            "CREATE TABLE app_settings (
+                key        TEXT PRIMARY KEY,
+                value      TEXT NOT NULL,
+                updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+            )",
+        )
+        .execute(&pool)
+        .await
+        .expect("create app_settings");
+        pool
+    }
+
+    #[tokio::test]
+    async fn kv_round_trip() {
+        let pool = fresh_pool().await;
+        SettingsRepository::set_kv(&pool, "foo", "42").await.unwrap();
+        assert_eq!(
+            SettingsRepository::get_kv(&pool, "foo").await.unwrap(),
+            Some("42".to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn kv_overwrite() {
+        let pool = fresh_pool().await;
+        SettingsRepository::set_kv(&pool, "k", "first").await.unwrap();
+        SettingsRepository::set_kv(&pool, "k", "second").await.unwrap();
+        assert_eq!(
+            SettingsRepository::get_kv(&pool, "k").await.unwrap(),
+            Some("second".to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn kv_missing() {
+        let pool = fresh_pool().await;
+        assert_eq!(
+            SettingsRepository::get_kv(&pool, "nope").await.unwrap(),
+            None
+        );
+    }
+
+    #[tokio::test]
+    async fn kv_delete() {
+        let pool = fresh_pool().await;
+        SettingsRepository::set_kv(&pool, "k", "v").await.unwrap();
+        SettingsRepository::delete_kv(&pool, "k").await.unwrap();
+        assert_eq!(
+            SettingsRepository::get_kv(&pool, "k").await.unwrap(),
+            None
+        );
+    }
 }

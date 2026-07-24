@@ -5,10 +5,16 @@
 //! can tell the two apart. No retry / backoff: the next interval tick is the
 //! retry. Failures are surfaced through the same `last_test` slot a manual
 //! probe would use; the ring buffer of transcript failures is never touched.
+//!
+//! PR-48: persists the chosen interval in the `app_settings` table so the
+//! setting survives app restarts. Reads go through `load_current_interval`
+//! (called by `lib.rs::init_app`); the two `#[tauri::command]` shims just
+//! round-trip the value into and out of the DB.
 
+use crate::database::repositories::setting::SettingsRepository;
 use crate::llm_diagnostics::{DiagnosticsSnapshot, LastTestResult, LLMDiagnosticsState};
 use crate::llm_postprocess::{generate_summary, http_client, load_provider_inputs};
-use std::sync::atomic::{AtomicU64, Ordering};
+use sqlx::SqlitePool;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -16,12 +22,8 @@ use tauri::{AppHandle, Emitter, Manager};
 pub const VALID_INTERVALS: &[u64] = &[0, 300, 600, 1800, 3600];
 pub const DEFAULT_INTERVAL: u64 = 600;
 
-
-/// In-memory current interval. `0` = disabled. Reset to DEFAULT_INTERVAL on
-/// app restart (no persistence in this PR; a follow-up can route through
-/// the existing `app_settings` table once SettingsRepository grows a
-/// generic KV API).
-pub static CURRENT_INTERVAL: AtomicU64 = AtomicU64::new(DEFAULT_INTERVAL);
+/// Storage key for the persisted interval in the `app_settings` KV table.
+const HEALTH_INTERVAL_KEY: &str = "llm_health_check_interval_secs";
 
 /// Snap an arbitrary input to the nearest valid interval. `0` = disabled.
 pub fn snap_interval(secs: u64) -> u64 {
@@ -40,6 +42,28 @@ pub fn snap_interval(secs: u64) -> u64 {
         }
     }
     best
+}
+
+/// Load the persisted interval from `app_settings`, falling back to
+/// `DEFAULT_INTERVAL` on missing row, parse error, or DB error.
+///
+/// Never returns `Err` because callers (notably `init_app`) can't usefully
+/// surface a startup failure here; defaulting is the right safety net.
+pub async fn load_current_interval(pool: &SqlitePool) -> u64 {
+    match SettingsRepository::get_kv(pool, HEALTH_INTERVAL_KEY).await {
+        Ok(Some(v)) => v
+            .parse::<u64>()
+            .map(snap_interval)
+            .unwrap_or(DEFAULT_INTERVAL),
+        _ => DEFAULT_INTERVAL,
+    }
+}
+
+fn pool_from_app(app: &AppHandle) -> Result<SqlitePool, String> {
+    match app.try_state::<crate::state::AppState>() {
+        Some(s) => Ok(s.db_manager.pool().clone()),
+        None => Err("AppState not initialized".into()),
+    }
 }
 
 /// Spawn the periodic health-check task. Idempotent on `AppHandle` drop.
@@ -154,15 +178,22 @@ pub async fn run_health_check(app: &AppHandle, scheduled: bool) -> LastTestResul
 }
 
 #[tauri::command]
-pub fn get_llm_health_check_interval_secs() -> u64 {
-    CURRENT_INTERVAL.load(Ordering::Relaxed)
+pub async fn get_llm_health_check_interval_secs(app: AppHandle) -> Result<u64, String> {
+    let pool = pool_from_app(&app)?;
+    Ok(load_current_interval(&pool).await)
 }
 
 #[tauri::command]
-pub fn set_llm_health_check_interval_secs(secs: u64) -> u64 {
+pub async fn set_llm_health_check_interval_secs(
+    app: AppHandle,
+    secs: u64,
+) -> Result<u64, String> {
+    let pool = pool_from_app(&app)?;
     let snapped = snap_interval(secs);
-    CURRENT_INTERVAL.store(snapped, Ordering::Relaxed);
-    snapped
+    SettingsRepository::set_kv(&pool, HEALTH_INTERVAL_KEY, &snapped.to_string())
+        .await
+        .map_err(|e| format!("failed to persist interval: {}", e))?;
+    Ok(snapped)
 }
 
 #[cfg(test)]
