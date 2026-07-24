@@ -123,7 +123,10 @@
           "last_test_failed": "上次探測失敗 ({code}: {message}) - {when}",
           "column_code": "錯誤碼",
           "column_count": "次數",
-          "column_last_seen": "最後出現"
+          "column_last_seen": "最後出現",
+          "test_after_save": "儲存後已測試連線",
+          "test_ok": "連線正常",
+          "test_fail": "連線失敗：{message}"
         }
       }
   },
