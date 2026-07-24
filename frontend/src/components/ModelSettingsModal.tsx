@@ -164,6 +164,10 @@ export function ModelSettingsModal({
   const [lastTestMessage, setLastTestMessage] = useState<string>('');
   const tSettings = useTranslations('settings');
 
+  // PR-46b: save-time custom-openai endpoint probe.
+  const [isCheckingEndpoint, setIsCheckingEndpoint] = useState<boolean>(false);
+  const [endpointCheckError, setEndpointCheckError] = useState<string | null>(null);
+
   // Combobox state
   const [modelComboboxOpen, setModelComboboxOpen] = useState<boolean>(false);
 
@@ -266,7 +270,9 @@ export function ModelSettingsModal({
   const isDoneDisabled =
     (requiresApiKey && (!apiKey || (typeof apiKey === 'string' && !apiKey.trim()))) ||
     (modelConfig.provider === 'ollama' && ollamaEndpointChanged) ||
-    isCustomOpenAIInvalid;
+    isCustomOpenAIInvalid ||
+    isCheckingEndpoint ||
+    !!endpointCheckError;
 
   useEffect(() => {
     const fetchModelConfig = async () => {
@@ -629,6 +635,20 @@ export function ModelSettingsModal({
   }, [models, openRouterModels, builtinAiModels, openaiModels, claudeModels, groqModels, modelConfig.provider]);
 
   const handleSave = async () => {
+    // PR-46b: pre-save endpoint probe for custom-openai.
+    if (modelConfig.provider === 'custom-openai' && customOpenAIEndpoint.trim()) {
+      setIsCheckingEndpoint(true);
+      setEndpointCheckError(null);
+      const ok = await checkEndpointReachable(customOpenAIEndpoint.trim());
+      setIsCheckingEndpoint(false);
+      if (!ok) {
+        setEndpointCheckError(tSettings('transcript.llm.endpoint_unreachable', {
+          message: customOpenAIEndpoint.trim(),
+        }));
+        return;
+      }
+    }
+
     // For custom-openai provider, save the custom config first
     if (modelConfig.provider === 'custom-openai') {
       try {
@@ -703,6 +723,20 @@ export function ModelSettingsModal({
       setIsTestingAfterSave(false);
     }
   };
+
+// PR-46b: HEAD/OPTIONS probe. Both methods throwing = unreachable; 4xx/5xx are reachable.
+async function checkEndpointReachable(url: string): Promise<boolean> {
+  for (const method of ['HEAD', 'OPTIONS'] as const) {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 5000);
+      const res = await fetch(url, { method, mode: 'cors', signal: ctrl.signal });
+      clearTimeout(timer);
+      if (res.ok || res.status === 405) return true;
+    } catch { /* try next method */ }
+  }
+  return false;
+}
 
   // Test custom OpenAI connection
   const testCustomOpenAIConnection = async () => {
@@ -879,6 +913,12 @@ export function ModelSettingsModal({
                 });
                 // API key is now synced automatically via useEffect watching providerApiKeys
 
+                // PR-46b: auto-fill custom-openai endpoint from preset default
+                const newPreset = providerPresets.find(p => p.id === provider);
+                if (newPreset?.default_base_url && !customOpenAIEndpoint) {
+                  setCustomOpenAIEndpoint(newPreset.default_base_url);
+                }
+
                 // Load OpenRouter models only when OpenRouter is selected
                 if (provider === 'openrouter') {
                   loadOpenRouterModels();
@@ -993,6 +1033,9 @@ export function ModelSettingsModal({
               <p className="text-xs text-muted-foreground mt-1">
                 Base URL of the OpenAI-compatible API
               </p>
+              {endpointCheckError && (
+                <p className="text-xs text-red-600 mt-1">{endpointCheckError}</p>
+              )}
             </div>
 
             <div>
@@ -1147,6 +1190,11 @@ export function ModelSettingsModal({
             </div>
           </div>
         )}
+        <p className="text-xs text-muted-foreground mt-1">
+          {activePreset?.requires_api_key
+            ? tSettings('transcript.llm.api_key_required')
+            : tSettings('transcript.llm.api_key_not_required')}
+        </p>
 
         {modelConfig.provider === 'ollama' && (
           <div>
@@ -1434,7 +1482,7 @@ export function ModelSettingsModal({
           onClick={handleSave}
           disabled={isDoneDisabled}
         >
-          Save
+          {isCheckingEndpoint ? tSettings('transcript.llm.endpoint_checking') : 'Save'}
         </Button>
         {isTestingAfterSave && (
           <span className="ml-3 text-sm text-muted-foreground self-center">{tSettings('transcript.llm.test_after_save')}</span>

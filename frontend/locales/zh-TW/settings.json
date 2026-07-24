@@ -126,7 +126,11 @@
           "column_last_seen": "最後出現",
           "test_after_save": "儲存後已測試連線",
           "test_ok": "連線正常",
-          "test_fail": "連線失敗：{message}"
+          "test_fail": "連線失敗：{message}",
+          "api_key_required": "需要 API 金鑰",
+          "api_key_not_required": "不需要 API 金鑰",
+          "endpoint_checking": "正在檢查端點...",
+          "endpoint_unreachable": "端點無法連線：{message}"
         }
       }
   },

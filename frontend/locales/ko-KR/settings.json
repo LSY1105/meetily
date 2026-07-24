@@ -126,7 +126,11 @@
           "column_last_seen": "Last seen",
           "test_after_save": "저장 후 연결 테스트 완료",
           "test_ok": "연결 정상",
-          "test_fail": "연결 실패: {message}"
+          "test_fail": "연결 실패: {message}",
+          "api_key_required": "API 키 필요",
+          "api_key_not_required": "API 키 불필요",
+          "endpoint_checking": "엔드포인트 확인 중...",
+          "endpoint_unreachable": "엔드포인트에 연결할 수 없음: {message}"
         }
       }
   },
