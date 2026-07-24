@@ -919,6 +919,16 @@ async function checkEndpointReachable(url: string): Promise<boolean> {
                   setCustomOpenAIEndpoint(newPreset.default_base_url);
                 }
 
+                // PR-46c: auto-fill Ollama endpoint from preset default. Mirrors the
+                // PR-46b custom-openai auto-fill above. Only fires when the user has
+                // not already typed a value.
+                if (provider === 'ollama' && !ollamaEndpoint) {
+                  const ollamaPreset = providerPresets.find(p => p.id === 'ollama');
+                  if (ollamaPreset?.default_base_url) {
+                    setOllamaEndpoint(ollamaPreset.default_base_url);
+                  }
+                }
+
                 // Load OpenRouter models only when OpenRouter is selected
                 if (provider === 'openrouter') {
                   loadOpenRouterModels();
