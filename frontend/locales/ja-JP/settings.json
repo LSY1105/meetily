@@ -126,7 +126,11 @@
           "column_last_seen": "Last seen",
           "test_after_save": "保存後に接続をテストしました",
           "test_ok": "接続は正常です",
-          "test_fail": "接続に失敗しました：{message}"
+          "test_fail": "接続に失敗しました：{message}",
+          "api_key_required": "API キーが必要です",
+          "api_key_not_required": "API キーは不要です",
+          "endpoint_checking": "エンドポイントを確認中...",
+          "endpoint_unreachable": "エンドポイントに到達できません：{message}"
         }
       }
   },

@@ -126,7 +126,11 @@
           "column_last_seen": "最后出现",
           "test_after_save": "保存后已测试连接",
           "test_ok": "连接正常",
-          "test_fail": "连接失败：{message}"
+          "test_fail": "连接失败：{message}",
+          "api_key_required": "需要 API 密钥",
+          "api_key_not_required": "不需要 API 密钥",
+          "endpoint_checking": "正在检查端点...",
+          "endpoint_unreachable": "端点不可达：{message}"
         }
       }
   },

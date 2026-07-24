@@ -126,7 +126,11 @@
           "column_last_seen": "Last seen",
           "test_after_save": "Connection tested on save",
           "test_ok": "Connection works",
-          "test_fail": "Connection failed: {message}"
+          "test_fail": "Connection failed: {message}",
+          "api_key_required": "Requires API key",
+          "api_key_not_required": "No API key needed",
+          "endpoint_checking": "Checking endpoint...",
+          "endpoint_unreachable": "Endpoint unreachable: {message}"
         }
       }
   },
