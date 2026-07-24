@@ -15,8 +15,11 @@ export interface Transcript {
   // NEW: Recording-relative timestamps for playback sync
   audio_start_time?: number; // Seconds from recording start (e.g., 125.3)
   audio_end_time?: number;   // Seconds from recording start (e.g., 128.6)
-duration?: number;          // Segment duration in seconds (e.g., 3.3)
-/** PR-44a: realtime speaker hint; dropped once the offline label arrives. */
+  duration?: number;          // Segment duration in seconds (e.g., 3.3)
+  /** PR-44a: realtime speaker hint; dropped once the offline label arrives. */
+  transient_speaker?: string | null;
+  speaker?: string | null;
+}
 export type DiarizationModelStatus = 'ready' | 'loading' | 'failed' | 'disabled';
 
 export interface DiarizationConfig {
@@ -26,9 +29,6 @@ export interface DiarizationConfig {
   model_status: DiarizationModelStatus;
 }
 
-transient_speaker?: string | null;
-  speaker?: string | null;
-}
 
 export interface TranscriptUpdate {
   text: string;
@@ -119,6 +119,8 @@ export interface TranscriptSegmentData {
   endTime?: number; // audio_end_time in seconds
   text: string;
   confidence?: number;
+  /** PR-44a: realtime speaker hint; dropped once the offline label arrives. */
+  transient_speaker?: string | null;
   speaker?: string | null;
   // PR-42-iii: streaming LLM postprocess result.
   corrected_text?: string;

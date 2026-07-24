@@ -103,7 +103,29 @@
       "relative_hours": "{count} 時間前",
       "relative_days": "{count} 日前",
       "relative_over_30_days": "30 日以上前"
-    }
+    },
+      "llm": {
+        "test_connection": {
+          "button": "Test connection",
+          "testing": "Testing...",
+          "success": "Connection OK ({latency})",
+          "failed": "Connection failed ({code})"
+        },
+        "diagnostics": {
+          "title": "LLM diagnostics",
+          "description": "Aggregated failure buckets from the last 200 LLM postprocess attempts and the most recent manual probe.",
+          "clear": "Clear",
+          "cleared": "Diagnostics cleared",
+          "refresh": "Refresh",
+          "loading": "Loading diagnostics...",
+          "empty": "No LLM failures recorded yet.",
+          "last_test_ok": "Last probe OK ({latency}) - {when}",
+          "last_test_failed": "Last probe failed ({code}: {message}) - {when}",
+          "column_code": "Code",
+          "column_count": "Count",
+          "column_last_seen": "Last seen"
+        }
+      }
   },
   "summary": {
     "language": {

@@ -3,7 +3,7 @@ import type { DiarizationConfig } from '@/types';
 
 async function invokeTauri<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   // Lazy require to avoid breaking SSR-style imports during build.
-  const mod = await import('@/lib/transport');
+  const mod = await import('@tauri-apps/api/core');
   return mod.invoke<T>(cmd, args);
 }
 

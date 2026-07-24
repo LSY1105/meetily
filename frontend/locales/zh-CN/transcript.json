@@ -1,4 +1,11 @@
 {
+  "retry_postprocess": {
+    "button": "重试",
+    "retrying": "重试中...",
+    "failed": "重试失败：{message}"
+  },
+
+  "title": "转写",
   "title": "转写",
   "view": {
     "empty": "暂无转写内容。开始录音后将在此显示。",

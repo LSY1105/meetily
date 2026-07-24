@@ -1,4 +1,11 @@
 {
+  "retry_postprocess": {
+    "button": "重試",
+    "retrying": "重試中...",
+    "failed": "重試失敗：{message}"
+  },
+
+  "title": "轉寫",
   "title": "轉寫",
   "view": {
     "empty": "尚無轉寫內容。開始錄音後將在此顯示。",
