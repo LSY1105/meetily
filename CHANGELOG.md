@@ -12,50 +12,40 @@ lands cleanly into `devtest`. PR-N and short hashes link back to GitHub.
 ## [Unreleased]
 
 ### Added
-- PR-44d (Wave 27): Speaker diarization for import / retranscribe
-  paths. Both flows now spawn the offline re-clustering pass after their
-  segment rows are persisted, reusing `diarization::offline::commit_speaker_labels`
-  from PR-44b with an empty realtime buffer (forces the wav re-embed
-  path). The `diarization::status().enabled` flag short-circuits the
-  pass when the user disables diarization in settings; min/max speakers
-  come from the same settings source. New unit test asserts the
-  enabled=false short-circuit returns 0 without touching the DB.
-- PR-44c (Wave 27): Speaker-diarization settings + UI/i18n. New
-  `useDiarizationConfig` hook + `DiarizationSettingsBlock` panel
-  (enable toggle, min/max speakers, model status). Frontend type adds
-  `DiarizationConfig` + `transient_speaker`. `VirtualizedTranscriptView`
-  renders a dashed `transient_tooltip` chip when only a realtime hint
-  is available; the solid chip + rename UI takes over once the offline
-  pass lands. Two new Tauri commands (`get_diarization_status`,
-  `set_diarization_config`) back the settings page; status is in-memory
-  with sane defaults (min=2, max=6, model_status=loading until the
-  sherpa-onnx model is detected). All 6 locales ship 11 new keys
-  (`diarization.*` + `transcript.transient_tooltip`).
-- PR-44b (Wave 27): Offline diarization re-clustering. Pure-Rust
-  NME-SC lite spectral clustering over windowed speaker embeddings
-  (1.5 s window, 0.75 s hop). After `RecordingSaver::finalize()` writes
-  `audio.wav`, a tokio task re-embeds the wav (or reuses the realtime
-  buffer) and writes stable `Speaker N` labels to `transcripts.speaker`
-  in a single transaction. A `transcripts-updated` Tauri event tells the
-  frontend to refetch. New deps: `hound`, `nalgebra`. New docs:
-  `docs/diarization_zh.md`. Failures degrade to `speaker = NULL`.
-- PR-44a (Wave 27): Realtime speaker-diarization hint. New
-  `diarization` module ships `EmbeddingBuffer` plus a sherpa-onnx
-  embedding helper scaffolded behind a deterministic stub. `TranscriptUpdate`
-  gains an optional `transientSpeaker` field; the value is advisory and
-  the frontend renders a `transient_tooltip` (PR-44c adds the UI). The
-  recording saver owns a per-session buffer that drains on stop. No DB
-  change; offline re-clustering lands in PR-44b.
-- PR-43 (Wave 26): Typed `LLMError` propagates to the public API of
-  `summary::processor` and `summary::failover`. `generate_meeting_summary`,
-  `run_markdown_transform`, `translate_markdown`,
-  `normalize_markdown_to_english`, and `generate_with_failover` now
-  return `Result<_, LLMError>` instead of `Result<_, String>`. The five
-  `.map_err(|e| e.to_string())` adaptations PR-42-iv-c left behind are
-  removed. The DB layer (`service.rs`) switches its cancellation check
-  from `e.contains("cancelled")` to `matches!(e, LLMError::Cancelled)`
-  and stringifies the typed error at the single persistence boundary.
-  No frontend change; no DB schema change; no new variant on `LLMError`.
+- (none yet)
+
+### Changed
+- (none yet)
+
+### Fixed
+- (none yet)
+
+---
+
+## [v0.6.0] - 2026-07-24
+
+### Added
+- PR-45b (Wave 28): LLM diagnostics UI panel + per-segment retry
+  button. New `LLMDiagnosticsPanel` (last-test result + bucket table + Test/Clear
+  buttons) wired into the existing `TranscriptSettings` `requiresApiKey`
+  block; new `useLLMDiagnostics` hook subscribes to the `llm-diagnostics-updated`
+  Tauri event and refetches on focus for cross-window sync. `VirtualizedTranscriptView`
+  renders a persistent retry glyph next to the failed-segment warning that calls
+  `retry_segment_postprocess`. All 6 locales ship 19 new keys
+  (`settings.transcript.llm.{test_connection,diagnostics}.*` +
+  `transcript.retry_postprocess.*`). Surgical fixes to the fork:devtest
+  CI: added `transient_speaker` to `TranscriptSegmentData` and the matching
+  destructuring in `TranscriptSegment`; the same hidden TS debt had blocked
+  PR-44c merging cleanly upstream.
+- PR-45a (Wave 28): LLM diagnostics state + test/retry commands. New
+  `llm_diagnostics` module ships `LLMDiagnosticsState` (cap-200 ring buffer
+  + bucket aggregation by error code + separate `last_test` tracker);
+  `llm_postprocess` records a diagnostic on every `spawn_segment_postprocess`
+  failure. New Tauri commands `test_llm_connection` (manual probe, writes
+  `last_test` only) and `retry_segment_postprocess`. 5 unit tests cover
+  aggregation / ring-buffer eviction / clear semantics. Zero behaviour change
+  for current users — diagnostics are passive until PR-45b wires the panel.
+  Spec: `docs/superpowers/specs/2026-07-19-llm-failure-ux.md`.
 
 ### Changed
 - (none yet)
