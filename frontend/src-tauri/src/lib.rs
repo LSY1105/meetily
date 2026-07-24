@@ -49,6 +49,7 @@ pub mod transcription_preferences;
 pub mod llm_postprocess;
 pub mod llm_diagnostics;
 pub mod llm_provider;
+pub mod llm_health;
 pub mod hotword_stats;
 pub mod onboarding;
 pub mod openai;
@@ -531,6 +532,10 @@ pub fn run() {
                 hotword_stats::init(state.db_manager.pool().clone());
                 llm_postprocess::init_app(_app.handle().clone());
                 _app.manage(llm_diagnostics::LLMDiagnosticsState::default());
+                let interval = llm_health::get_llm_health_check_interval_secs();
+                if interval > 0 {
+                    llm_health::start(_app.handle().clone(), interval);
+                }
             }
 
             // Initialize bundled templates directory for dynamic template discovery
@@ -786,6 +791,8 @@ pub fn run() {
             llm_postprocess::test_llm_connection,
             llm_provider::list_llm_providers,
             llm_postprocess::retry_segment_postprocess,
+            llm_health::get_llm_health_check_interval_secs,
+            llm_health::set_llm_health_check_interval_secs,
             onboarding::save_onboarding_status_cmd,
             onboarding::reset_onboarding_status_cmd,
             onboarding::complete_onboarding,

@@ -23,6 +23,8 @@ export interface LastTestResult {
     code?: string;
     message?: string;
     ts: string;
+    /** PR-47: manual button vs scheduled background probe */
+    origin?: 'manual' | 'scheduled';
 }
 
 export interface DiagnosticsSnapshot {

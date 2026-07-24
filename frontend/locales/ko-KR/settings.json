@@ -130,7 +130,14 @@
           "api_key_required": "API 키 필요",
           "api_key_not_required": "API 키 불필요",
           "endpoint_checking": "엔드포인트 확인 중...",
-          "endpoint_unreachable": "엔드포인트에 연결할 수 없음: {message}"
+          "endpoint_unreachable": "엔드포인트에 연결할 수 없음: {message}",
+          "health_check_interval_label": "상태 확인 주기",
+          "health_check_interval_opt_disabled": "사용 안 함",
+          "health_check_interval_opt_5min": "5분마다",
+          "health_check_interval_opt_10min": "10분마다",
+          "health_check_interval_opt_30min": "30분마다",
+          "health_check_interval_opt_1h": "1시간마다",
+          "last_scheduled_run_label": "마지막 정기 확인: {when}"
         }
       }
   },
