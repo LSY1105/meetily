@@ -13,7 +13,6 @@ use crate::database::repositories::setting::SettingsRepository;
 use crate::summary::llm_client::{generate_summary, LLMError, LLMProvider};
 use crate::summary::CustomOpenAIConfig;
 use crate::llm_diagnostics::{LastTestResult, LLMDiagnosticsState};
-use crate::llm_diagnostics::DiagnosticsSnapshot;
 use once_cell::sync::OnceLock;
 use serde::Serialize;
 use sqlx::SqlitePool;
@@ -303,63 +302,11 @@ pub fn spawn_segment_postprocess(segment_id: String, text: String) {
 #[tauri::command]
 pub async fn test_llm_connection(
     app: tauri::AppHandle,
-    diag: tauri::State<'_, LLMDiagnosticsState>,
+    _diag: tauri::State<'_, LLMDiagnosticsState>,
 ) -> Result<LastTestResult, String> {
-    let state = match app.try_state::<crate::state::AppState>() {
-        Some(s) => s,
-        None => return Err("AppState not initialized".into()),
-    };
-    let pool = state.db_manager.pool().clone();
-    let inputs = match load_provider_inputs(&pool).await {
-        Ok(v) => v,
-        Err(e) => {
-            let last = LastTestResult::failed(0, e.code, &e.message);
-            diag.set_last_test(last.clone());
-            let _ = app.emit(
-                "llm-diagnostics-updated",
-                &DiagnosticsSnapshot {
-                    buckets: diag.buckets(),
-                    last_test: diag.last_test(),
-                },
-            );
-            return Ok(last);
-        }
-    };
-    let (provider, model_name, api_key, ollama_endpoint, custom_openai_endpoint,
-        max_tokens, temperature, top_p) = inputs;
-    let start = std::time::Instant::now();
-    let result = generate_summary(
-        http_client(),
-        &provider,
-        &model_name,
-        &api_key,
-        "ping",
-        "ping",
-        ollama_endpoint.as_deref(),
-        custom_openai_endpoint.as_deref(),
-        Some(1).or(max_tokens),
-        temperature,
-        top_p,
-        None,
-        None,
-    ).await;
-    let latency_ms = start.elapsed().as_millis();
-    let last = match result {
-        Ok(_) => LastTestResult::ok(latency_ms),
-        Err(e) => {
-            let mapped = map_llm_error(e);
-            LastTestResult::failed(latency_ms, mapped.code, &mapped.message)
-        }
-    };
-    diag.set_last_test(last.clone());
-    let _ = app.emit(
-        "llm-diagnostics-updated",
-        &DiagnosticsSnapshot {
-            buckets: diag.buckets(),
-            last_test: diag.last_test(),
-        },
-    );
-    Ok(last)
+    // PR-47: shared body lives in `llm_health::run_health_check` so the
+    // scheduled background probe can call exactly the same code path.
+    Ok(crate::llm_health::run_health_check(&app, /* scheduled */ false).await)
 }
 
 /// Re-run postprocess for a single failed segment. Thin wrapper

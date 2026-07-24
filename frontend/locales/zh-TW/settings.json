@@ -130,7 +130,14 @@
           "api_key_required": "需要 API 金鑰",
           "api_key_not_required": "不需要 API 金鑰",
           "endpoint_checking": "正在檢查端點...",
-          "endpoint_unreachable": "端點無法連線：{message}"
+          "endpoint_unreachable": "端點無法連線：{message}",
+          "health_check_interval_label": "健康檢查間隔",
+          "health_check_interval_opt_disabled": "已停用",
+          "health_check_interval_opt_5min": "每 5 分鐘",
+          "health_check_interval_opt_10min": "每 10 分鐘",
+          "health_check_interval_opt_30min": "每 30 分鐘",
+          "health_check_interval_opt_1h": "每小時",
+          "last_scheduled_run_label": "上次排程檢查：{when}"
         }
       }
   },

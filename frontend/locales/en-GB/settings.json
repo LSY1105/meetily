@@ -130,7 +130,14 @@
           "api_key_required": "Requires API key",
           "api_key_not_required": "No API key needed",
           "endpoint_checking": "Checking endpoint...",
-          "endpoint_unreachable": "Endpoint unreachable: {message}"
+          "endpoint_unreachable": "Endpoint unreachable: {message}",
+          "health_check_interval_label": "Health check interval",
+          "health_check_interval_opt_disabled": "Disabled",
+          "health_check_interval_opt_5min": "Every 5 minutes",
+          "health_check_interval_opt_10min": "Every 10 minutes",
+          "health_check_interval_opt_30min": "Every 30 minutes",
+          "health_check_interval_opt_1h": "Every hour",
+          "last_scheduled_run_label": "Last scheduled check: {when}"
         }
       }
   },

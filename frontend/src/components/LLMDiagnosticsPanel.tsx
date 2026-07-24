@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -33,6 +34,22 @@ export function LLMDiagnosticsPanel() {
     const t = useTranslations();
     const { snapshot, loading, error, refresh, clear, testConnection } = useLLMDiagnostics();
     const [testing, setTesting] = useState<boolean>(false);
+    // PR-47: scheduled health-check interval (seconds). 0 = disabled.
+    const [intervalSecs, setIntervalSecs] = useState<number>(600);
+
+
+    useEffect(() => {
+        invoke<number>('get_llm_health_check_interval_secs')
+            .then((v) => setIntervalSecs(typeof v === 'number' ? v : 600))
+            .catch(() => {});
+    }, []);
+
+    const handleIntervalChange = async (value: string) => {
+        const map: Record<string, number> = { disabled: 0, "5min": 300, "10min": 600, "30min": 1800, "1h": 3600 };
+        const secs = map[value] ?? 600;
+        const saved = await invoke<number>('set_llm_health_check_interval_secs', { secs });
+        setIntervalSecs(saved);
+    };
 
     const handleTest = async () => {
         setTesting(true);
@@ -100,6 +117,20 @@ export function LLMDiagnosticsPanel() {
                     </Button>
                 </div>
             </div>
+            <div className="flex items-center gap-2 text-xs text-gray-600">
+                <label>{t('settings.transcript.llm.health_check_interval_label')}:</label>
+                <select
+                    value={intervalSecs === 0 ? 'disabled' : intervalSecs === 300 ? '5min' : intervalSecs === 1800 ? '30min' : intervalSecs === 3600 ? '1h' : '10min'}
+                    onChange={(e) => handleIntervalChange(e.target.value)}
+                    className="border border-gray-300 rounded px-2 py-0.5 text-xs bg-white"
+                >
+                    <option value="disabled">{t('settings.transcript.llm.health_check_interval_opt_disabled')}</option>
+                    <option value="5min">{t('settings.transcript.llm.health_check_interval_opt_5min')}</option>
+                    <option value="10min">{t('settings.transcript.llm.health_check_interval_opt_10min')}</option>
+                    <option value="30min">{t('settings.transcript.llm.health_check_interval_opt_30min')}</option>
+                    <option value="1h">{t('settings.transcript.llm.health_check_interval_opt_1h')}</option>
+                </select>
+            </div>
             <p className="text-xs text-gray-600">
                 {t('settings.transcript.llm.diagnostics.description')}
             </p>
@@ -127,7 +158,17 @@ export function LLMDiagnosticsPanel() {
 
             {error ? (
                 <p className="text-sm text-red-600">{error}</p>
-            ) : loading ? (
+            ) : null}
+
+            {snapshot.last_test?.origin === 'scheduled' && (
+                <p className="text-xs text-gray-500">
+                    {t('settings.transcript.llm.last_scheduled_run_label', {
+                        when: formatTimestamp(String(snapshot.last_test.ts)),
+                    })}
+                </p>
+            )}
+
+            {loading ? (
                 <p className="text-sm text-gray-500">
                     {t('settings.transcript.llm.diagnostics.loading')}
                 </p>

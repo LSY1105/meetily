@@ -130,7 +130,14 @@
           "api_key_required": "需要 API 密钥",
           "api_key_not_required": "不需要 API 密钥",
           "endpoint_checking": "正在检查端点...",
-          "endpoint_unreachable": "端点不可达：{message}"
+          "endpoint_unreachable": "端点不可达：{message}",
+          "health_check_interval_label": "健康检查间隔",
+          "health_check_interval_opt_disabled": "已禁用",
+          "health_check_interval_opt_5min": "每 5 分钟",
+          "health_check_interval_opt_10min": "每 10 分钟",
+          "health_check_interval_opt_30min": "每 30 分钟",
+          "health_check_interval_opt_1h": "每小时",
+          "last_scheduled_run_label": "上次定时检查：{when}"
         }
       }
   },

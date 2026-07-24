@@ -130,7 +130,14 @@
           "api_key_required": "API キーが必要です",
           "api_key_not_required": "API キーは不要です",
           "endpoint_checking": "エンドポイントを確認中...",
-          "endpoint_unreachable": "エンドポイントに到達できません：{message}"
+          "endpoint_unreachable": "エンドポイントに到達できません：{message}",
+          "health_check_interval_label": "ヘルスチェック間隔",
+          "health_check_interval_opt_disabled": "無効",
+          "health_check_interval_opt_5min": "5 分ごと",
+          "health_check_interval_opt_10min": "10 分ごと",
+          "health_check_interval_opt_30min": "30 分ごと",
+          "health_check_interval_opt_1h": "1 時間ごと",
+          "last_scheduled_run_label": "最後の定期チェック：{when}"
         }
       }
   },
