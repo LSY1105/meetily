@@ -103,7 +103,29 @@
       "relative_hours": "{count} 小时前",
       "relative_days": "{count} 天前",
       "relative_over_30_days": "30 天以上"
-    }
+    },
+      "llm": {
+        "test_connection": {
+          "button": "测试连接",
+          "testing": "测试中...",
+          "success": "连接成功 ({latency})",
+          "failed": "连接失败 ({code})"
+        },
+        "diagnostics": {
+          "title": "LLM 诊断",
+          "description": "最近 200 次 LLM 后处理失败的聚合统计，以及最近一次手动探测结果。",
+          "clear": "清空",
+          "cleared": "诊断已清空",
+          "refresh": "刷新",
+          "loading": "加载诊断信息...",
+          "empty": "暂无 LLM 失败记录。",
+          "last_test_ok": "上次探测成功 ({latency}) - {when}",
+          "last_test_failed": "上次探测失败 ({code}: {message}) - {when}",
+          "column_code": "错误码",
+          "column_count": "次数",
+          "column_last_seen": "最后出现"
+        }
+      }
   },
   "summary": {
     "language": {

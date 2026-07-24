@@ -1,4 +1,11 @@
 {
+  "retry_postprocess": {
+    "button": "再試行",
+    "retrying": "再試行中...",
+    "failed": "再試行失敗：{message}"
+  },
+
+  "title": "文字起こし",
   "title": "文字起こし",
   "view": {
     "empty": "まだ文字起こしはありません。録音を開始すると、ここに表示されます。",

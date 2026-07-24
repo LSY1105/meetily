@@ -1,4 +1,11 @@
 {
+  "retry_postprocess": {
+    "button": "재시도",
+    "retrying": "재시도 중...",
+    "failed": "재시도 실패: {message}"
+  },
+
+  "title": "전사",
   "title": "전사",
   "view": {
     "empty": "아직 전사가 없습니다. 녹음을 시작하면 여기에 표시됩니다.",

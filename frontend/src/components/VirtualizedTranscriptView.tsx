@@ -7,6 +7,8 @@ import { useTranscriptStreaming } from "@/hooks/useTranscriptStreaming";
 import { useHotwords, type HotwordRule } from "@/hooks/useHotwords";
 // PR-42-iii: streaming LLM postprocess events.
 import { useTranscriptPostprocessEvents } from "@/hooks/useTranscriptPostprocessEvents";
+import { invoke } from "@tauri-apps/api/core";
+import { RefreshCw } from "lucide-react";
 import { wrapHotwords } from "@/lib/wrapHotwords";
 import { toast } from "sonner";
 import { ConfidenceIndicator } from "./ConfidenceIndicator";
@@ -86,6 +88,7 @@ const TranscriptSegment = memo(function TranscriptSegment({
     onTimestampClick,
     speaker,
     customSpeakerNames,
+    transientSpeaker,
     onSpeakerRename,
     hotwords,
     protectedSet,
@@ -132,6 +135,19 @@ const TranscriptSegment = memo(function TranscriptSegment({
         setIsRenaming(false);
     };
     const cancelRename = () => setIsRenaming(false);
+    const [retrying, setRetrying] = useState(false);
+    const handleRetry = async () => {
+        if (retrying) return;
+        setRetrying(true);
+        try {
+            await invoke("retry_segment_postprocess", { segmentId: id, text });
+        } catch (e: unknown) {
+            const msg = typeof e === "string" ? e : "Retry failed";
+            toast.error(msg);
+        } finally {
+            setRetrying(false);
+        }
+    };
     const timeButton = (
         <button
             type="button"
@@ -205,10 +221,10 @@ const TranscriptSegment = memo(function TranscriptSegment({
                 <div className="flex-1">
                     {isStreaming ? (
                         <div className="bg-gray-100 border border-gray-200 rounded-lg px-3 py-2">
-                            <p className="text-base text-gray-800 leading-relaxed">{hotwordNodes}{postprocessFailed ? (<span className="ml-1 inline-flex align-baseline text-amber-600" title={postprocessFailedMessage ?? ""} aria-label="LLM postprocess failed">⚠</span>) : null}</p>
+                            <p className="text-base text-gray-800 leading-relaxed">{hotwordNodes}{postprocessFailed ? (<span className="ml-1 inline-flex align-baseline text-amber-600" title={postprocessFailedMessage ?? ""} aria-label="LLM postprocess failed">⚠</span>) : null}{postprocessFailed ? (<button type="button" onClick={handleRetry} disabled={retrying} className="ml-1 inline-flex align-baseline text-blue-600 hover:text-blue-800 disabled:text-gray-400" title={t("retry_postprocess.button", { default: "Retry" })} aria-label={t("retry_postprocess.button", { default: "Retry" })}><RefreshCw size={14} className={retrying ? "animate-spin" : ""} /></button>) : null}</p>
                         </div>
                     ) : (
-                        <p className="text-base text-gray-800 leading-relaxed">{hotwordNodes}{postprocessFailed ? (<span className="ml-1 inline-flex align-baseline text-amber-600" title={postprocessFailedMessage ?? ""} aria-label="LLM postprocess failed">⚠</span>) : null}</p>
+                        <p className="text-base text-gray-800 leading-relaxed">{hotwordNodes}{postprocessFailed ? (<span className="ml-1 inline-flex align-baseline text-amber-600" title={postprocessFailedMessage ?? ""} aria-label="LLM postprocess failed">⚠</span>) : null}{postprocessFailed ? (<button type="button" onClick={handleRetry} disabled={retrying} className="ml-1 inline-flex align-baseline text-blue-600 hover:text-blue-800 disabled:text-gray-400" title={t("retry_postprocess.button", { default: "Retry" })} aria-label={t("retry_postprocess.button", { default: "Retry" })}><RefreshCw size={14} className={retrying ? "animate-spin" : ""} /></button>) : null}</p>
                     )}
                 </div>
             </div>

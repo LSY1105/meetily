@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { Eye, EyeOff, Lock, Unlock } from 'lucide-react';
 import { ModelManager } from './WhisperModelManager';
 import { HotwordHitStatsPanel } from './HotwordHitStatsPanel';
+import { LLMDiagnosticsPanel } from './LLMDiagnosticsPanel';
 import { useDiarizationConfig } from '@/hooks/useDiarizationConfig';
 import { ParakeetModelManager } from './ParakeetModelManager';
 
@@ -345,6 +346,10 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                     <>
                     <div className="mt-4">
                         <HotwordHitStatsPanel />
+                    </div>
+                    <div className="mt-4">
+                        <LLMDiagnosticsPanel />
+                    </div>
                     <div className="mt-4">
                         <DiarizationSettingsBlock />
                     </div>

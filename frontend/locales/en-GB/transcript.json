@@ -1,4 +1,11 @@
 {
+  "retry_postprocess": {
+    "button": "Retry",
+    "retrying": "Retrying...",
+    "failed": "Retry failed: {message}"
+  },
+
+  "title": "Transcription",
   "title": "Transcription",
   "view": {
     "empty": "No transcript yet. Start recording to see transcription here.",
