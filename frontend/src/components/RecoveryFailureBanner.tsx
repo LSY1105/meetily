@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { listen } from '@/lib/transport';
+import type { UnlistenFn } from '@tauri-apps/api/event';
 import { toast } from 'sonner';
 import { AlertTriangle, RefreshCw, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 

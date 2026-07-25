@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { listen } from '@tauri-apps/api/event';
+import { listen } from '@/lib/transport';
 import { OrphanCheckpointDialog, type OrphanCheckpoint } from './OrphanCheckpointDialog';
 
 // PR-33: Listens for the `orphan-checkpoints-detected` event emitted by the Rust

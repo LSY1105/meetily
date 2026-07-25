@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { listen } from '@tauri-apps/api/event';
+import { listen } from '@/lib/transport';
 import { useRecordingStop } from '@/hooks/useRecordingStop';
 
 /**

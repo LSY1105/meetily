@@ -12,7 +12,8 @@
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { listen } from '@/lib/transport';
+import type { UnlistenFn } from '@tauri-apps/api/event';
 
 export interface PostprocessState {
   correctedText?: string;
