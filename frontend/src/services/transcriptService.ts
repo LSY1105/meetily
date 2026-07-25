@@ -6,7 +6,8 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
-import { listen, UnlistenFn } from '@tauri-apps/api/event';
+import { listen } from '@/lib/transport';
+import type { UnlistenFn } from '@tauri-apps/api/event';
 import { TranscriptUpdate, Transcript } from '@/types';
 
 export interface TranscriptionStatus {

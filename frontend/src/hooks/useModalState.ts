@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { listen } from '@tauri-apps/api/event';
+import { listen } from '@/lib/transport';
 import { toast } from 'sonner';
 import { TranscriptModelProps } from '@/components/TranscriptSettings';
 

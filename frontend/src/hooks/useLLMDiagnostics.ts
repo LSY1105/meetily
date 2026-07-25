@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { listen } from '@/lib/transport';
+import type { UnlistenFn } from '@tauri-apps/api/event';
 
 // Wave 28 / PR-45b: frontend hook for LLM diagnostics panel.
 // Mirrors the pattern of useHotwordHitStats: initial snapshot fetch
