@@ -33,6 +33,8 @@
     "seconds": "{seconds}초"
   },
   "errors": {
+    "unexpected_stop": "녹화가예기치않게중지되었스다",
+    "unknown_message": "녹화가예기치않게중지되었스다",
     "init_failed": "녹음을 초기화하지 못했습니다. 콘솔에서 자세한 내용을 확인하세요.",
     "pause_failed": "녹음을 일시 정지하지 못했습니다. 콘솔에서 자세한 내용을 확인하세요.",
     "resume_failed": "녹음을 재개하지 못했습니다. 콘솔에서 자세한 내용을 확인하세요.",
