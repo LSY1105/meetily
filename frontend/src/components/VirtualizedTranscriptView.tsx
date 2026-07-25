@@ -13,9 +13,10 @@ import { wrapHotwords } from "@/lib/wrapHotwords";
 import { toast } from "sonner";
 import { ConfidenceIndicator } from "./ConfidenceIndicator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { RecordingStatusBar } from "./RecordingStatusBar";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, X } from "lucide-react";
+import { Check, X, MoreHorizontal, Pencil, GitMerge } from "lucide-react";
 import { TranscriptSegmentData } from "@/types";
 import { useTranslations } from "next-intl";
 
@@ -48,6 +49,8 @@ export interface VirtualizedTranscriptViewProps {
     customSpeakerNames?: Record<string, string>;
     onSpeakerRename?: (speakerId: string, friendlyName: string) => void;
     transientSpeaker?: string | null;
+    onEditText?: (id: string, newText: string) => Promise<boolean> | boolean;
+    onMergeWithNext?: (id: string) => Promise<boolean> | boolean;
 }
 
 // Threshold for enabling virtualization (below this, use simple rendering)
@@ -94,8 +97,14 @@ const TranscriptSegment = memo(function TranscriptSegment({
     protectedSet,
     postprocessFailed,
     postprocessFailedMessage,
+    canMergeWithNext,
+    onEditText,
+    onMergeWithNext,
 }: {
     id: string;
+    canMergeWithNext?: boolean;
+    onEditText?: (id: string, newText: string) => Promise<boolean> | boolean;
+    onMergeWithNext?: (id: string) => Promise<boolean> | boolean;
     timestamp: number;
     text: string;
     confidence?: number;
@@ -135,6 +144,34 @@ const TranscriptSegment = memo(function TranscriptSegment({
         setIsRenaming(false);
     };
     const cancelRename = () => setIsRenaming(false);
+    const [isEditing, setIsEditing] = useState(false);
+    const [draftText, setDraftText] = useState("");
+    const openEdit = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!onEditText) return;
+        setDraftText(text);
+        setIsEditing(true);
+    };
+    const commitEdit = async () => {
+        const next = draftText;
+        setIsEditing(false);
+        if (next !== text) await onEditText?.(id, next);
+    };
+    const cancelEdit = () => setIsEditing(false);
+    const triggerMerge = async () => {
+        await onMergeWithNext?.(id);
+    };
+    const editMenu = (onEditText || onMergeWithNext) ? (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <button type="button" onClick={(e) => e.stopPropagation()} className="p-0.5 text-gray-500 hover:text-gray-700 mt-1 flex-shrink-0" title={t("segment.menu", { default: "Segment actions" })} aria-label={t("segment.menu", { default: "Segment actions" })}><MoreHorizontal size={14} /></button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+                {onEditText && <DropdownMenuItem onSelect={() => { setDraftText(text); setIsEditing(true); }}><Pencil size={14} className="mr-2" />{t("segment.edit", { default: "Edit segment" })}</DropdownMenuItem>}
+                {onMergeWithNext && <DropdownMenuItem disabled={!canMergeWithNext} onSelect={triggerMerge}><GitMerge size={14} className="mr-2" />{t("segment.merge_with_next", { default: "Merge with next" })}</DropdownMenuItem>}
+            </DropdownMenuContent>
+        </DropdownMenu>
+    ) : null;
     const [retrying, setRetrying] = useState(false);
     const handleRetry = async () => {
         if (retrying) return;
@@ -181,6 +218,7 @@ const TranscriptSegment = memo(function TranscriptSegment({
                         )}
                     </TooltipContent>
                 </Tooltip>
+                {editMenu}
                 {speaker && !isRenaming && (
                     <button
                         type="button"
@@ -219,12 +257,32 @@ const TranscriptSegment = memo(function TranscriptSegment({
                     </span>
                 )}
                 <div className="flex-1">
-                    {isStreaming ? (
+                    {isEditing ? (
+                        <div className="bg-yellow-50 border border-yellow-300 rounded-lg px-3 py-2">
+                            <textarea
+                                autoFocus
+                                value={draftText}
+                                onChange={(e) => setDraftText(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) commitEdit();
+                                    else if (e.key === "Escape") cancelEdit();
+                                }}
+                                rows={Math.max(2, draftText.split('\n').length)}
+                                className="w-full text-base text-gray-800 leading-relaxed bg-transparent focus:outline-none resize-y"
+                                title={t("segment.save_hint", { default: "Ctrl+Enter to save, Esc to cancel" })}
+                            />
+                            <div className="flex items-center gap-2 mt-2">
+                                <button type="button" onClick={commitEdit} className="p-1 text-green-600 hover:text-green-800" title={t("segment.save", { default: "Save" })} aria-label={t("segment.save", { default: "Save" })}><Check size={14} /></button>
+                                <button type="button" onClick={cancelEdit} className="p-1 text-gray-500 hover:text-gray-700" title={t("segment.cancel", { default: "Cancel" })} aria-label={t("segment.cancel", { default: "Cancel" })}><X size={14} /></button>
+                                {draftText.includes("|") && <span className="text-xs text-amber-700">{t("segment.split_at_marker", { default: "Split at |" })}</span>}
+                            </div>
+                        </div>
+                    ) : isStreaming ? (
                         <div className="bg-gray-100 border border-gray-200 rounded-lg px-3 py-2">
-                            <p className="text-base text-gray-800 leading-relaxed">{hotwordNodes}{postprocessFailed ? (<span className="ml-1 inline-flex align-baseline text-amber-600" title={postprocessFailedMessage ?? ""} aria-label="LLM postprocess failed">⚠</span>) : null}{postprocessFailed ? (<button type="button" onClick={handleRetry} disabled={retrying} className="ml-1 inline-flex align-baseline text-blue-600 hover:text-blue-800 disabled:text-gray-400" title={t("retry_postprocess.button", { default: "Retry" })} aria-label={t("retry_postprocess.button", { default: "Retry" })}><RefreshCw size={14} className={retrying ? "animate-spin" : ""} /></button>) : null}</p>
+                            <p onClick={onEditText ? openEdit : undefined} className={"text-base text-gray-800 leading-relaxed" + (onEditText ? " cursor-text hover:bg-gray-50 rounded px-1 -mx-1" : "")}>{hotwordNodes}{postprocessFailed ? (<span className="ml-1 inline-flex align-baseline text-amber-600" title={postprocessFailedMessage ?? ""} aria-label="LLM postprocess failed">⚠</span>) : null}{postprocessFailed ? (<button type="button" onClick={handleRetry} disabled={retrying} className="ml-1 inline-flex align-baseline text-blue-600 hover:text-blue-800 disabled:text-gray-400" title={t("retry_postprocess.button", { default: "Retry" })} aria-label={t("retry_postprocess.button", { default: "Retry" })}><RefreshCw size={14} className={retrying ? "animate-spin" : ""} /></button>) : null}</p>
                         </div>
                     ) : (
-                        <p className="text-base text-gray-800 leading-relaxed">{hotwordNodes}{postprocessFailed ? (<span className="ml-1 inline-flex align-baseline text-amber-600" title={postprocessFailedMessage ?? ""} aria-label="LLM postprocess failed">⚠</span>) : null}{postprocessFailed ? (<button type="button" onClick={handleRetry} disabled={retrying} className="ml-1 inline-flex align-baseline text-blue-600 hover:text-blue-800 disabled:text-gray-400" title={t("retry_postprocess.button", { default: "Retry" })} aria-label={t("retry_postprocess.button", { default: "Retry" })}><RefreshCw size={14} className={retrying ? "animate-spin" : ""} /></button>) : null}</p>
+                        <p onClick={onEditText ? openEdit : undefined} className={"text-base text-gray-800 leading-relaxed" + (onEditText ? " cursor-text hover:bg-gray-50 rounded px-1 -mx-1" : "")}>{hotwordNodes}{postprocessFailed ? (<span className="ml-1 inline-flex align-baseline text-amber-600" title={postprocessFailedMessage ?? ""} aria-label="LLM postprocess failed">⚠</span>) : null}{postprocessFailed ? (<button type="button" onClick={handleRetry} disabled={retrying} className="ml-1 inline-flex align-baseline text-blue-600 hover:text-blue-800 disabled:text-gray-400" title={t("retry_postprocess.button", { default: "Retry" })} aria-label={t("retry_postprocess.button", { default: "Retry" })}><RefreshCw size={14} className={retrying ? "animate-spin" : ""} /></button>) : null}</p>
                     )}
                 </div>
             </div>
@@ -249,6 +307,8 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
     onLoadMore,
     customSpeakerNames,
     onSpeakerRename,
+    onEditText,
+    onMergeWithNext,
 }) => {
     // Wave 18 PR-52: shared hotword rules so every TranscriptSegment uses the same list.
     const { rules: hotwords, protectedSet } = useHotwords();
@@ -407,6 +467,8 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                     >
                         {virtualizer.getVirtualItems().map((virtualRow) => {
                             const segment = segments[virtualRow.index];
+                            const nextSeg = segments[virtualRow.index + 1];
+                            const canMergeWithNext = !!(onMergeWithNext && nextSeg && (!segment.speaker || !nextSeg.speaker || segment.speaker === nextSeg.speaker));
                             const isStreaming = streamingSegmentId === segment.id;
 
                             return (
@@ -436,6 +498,9 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                         customSpeakerNames={customSpeakerNames}
                                         onSpeakerRename={onSpeakerRename}
                                         onTimestampClick={onTimestampClick}
+                                        onEditText={onEditText}
+                                        onMergeWithNext={onMergeWithNext}
+                                        canMergeWithNext={canMergeWithNext}
                                         hotwords={hotwords}
                                         protectedSet={protectedSet}
                                     />
@@ -477,7 +542,9 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                 // Simple rendering for small lists (better animations)
                 <>
                     <div className="space-y-1">
-                        {segments.map((segment) => {
+                        {segments.map((segment, index) => {
+                            const nextSeg = segments[index + 1];
+                            const canMergeWithNext = !!(onMergeWithNext && nextSeg && (!segment.speaker || !nextSeg.speaker || segment.speaker === nextSeg.speaker));
                             const isStreaming = streamingSegmentId === segment.id;
 
                             return (
@@ -501,6 +568,9 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                         customSpeakerNames={customSpeakerNames}
                                         onSpeakerRename={onSpeakerRename}
                                         onTimestampClick={onTimestampClick}
+                                        onEditText={onEditText}
+                                        onMergeWithNext={onMergeWithNext}
+                                        canMergeWithNext={canMergeWithNext}
                                         hotwords={hotwords}
                                     />
                                 </motion.div>

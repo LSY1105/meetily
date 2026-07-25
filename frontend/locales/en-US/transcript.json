@@ -33,7 +33,7 @@
       "error": "Audio playback failed"
     }
   },
-  "settings": {
+  "settings": {    "segment": {      "edit": "Edit segment",      "save": "Save",      "cancel": "Cancel",      "merge_with_next": "Merge with next",      "split_at_marker": "Split at |",      "menu": "Segment actions",      "save_hint": "Ctrl+Enter to save, Esc to cancel"    },
     "title": "Transcription Settings",
     "model": "Model",
     "language": "Language",

@@ -33,7 +33,7 @@
       "error": "오디오 재생 실패"
     }
   },
-  "settings": {
+  "settings": {    "segment": {      "edit": "구열평제",      "save": "저장",      "cancel": "취소",      "merge_with_next": "다음구열과합치기",      "split_at_marker": "|에서나누기",      "menu": "구열동작",      "save_hint": "Ctrl+Enter 鞝€鞛? Esc 旆唽"    },
     "title": "전사 설정",
     "model": "모델",
     "language": "언어",
