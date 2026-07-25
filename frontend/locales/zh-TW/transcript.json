@@ -33,7 +33,7 @@
       "error": "音訊播放失敗"
     }
   },
-  "settings": {
+  "settings": {    "segment": {      "edit": "編輯區塊",      "save": "儲存",      "cancel": "取消",      "merge_with_next": "合併到下一區",      "split_at_marker": "在|處拆分",      "menu": "區塊作業",      "save_hint": "Ctrl+Enter 鍎插瓨锛孍sc 鍙栨秷"    },
     "title": "轉寫設定",
     "model": "模型",
     "language": "語言",

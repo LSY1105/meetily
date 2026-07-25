@@ -8,6 +8,7 @@ import { useTranslations } from 'next-intl';
 import { useAudioPlayer } from '@/hooks/useAudioPlayer';
 import { useSpeakerNames } from '@/hooks/useSpeakerNames';
 import { TranscriptExportFormat } from '@/lib/transcript-export';
+import { useTranscriptMutations } from '@/hooks/useTranscriptMutations';
 import { Play, Pause, AlertCircle } from 'lucide-react';
 
 interface TranscriptPanelProps {
@@ -69,6 +70,8 @@ export function TranscriptPanel({
 }: TranscriptPanelProps) {
   const tSummary = useTranslations('summary');
   const tView = useTranslations('transcript.view');
+
+
   const audioPlayer = useAudioPlayer(audioPath ?? null);
 
   const convertedSegments = useMemo(() => {
@@ -85,6 +88,16 @@ export function TranscriptPanel({
         transient_speaker: t.transient_speaker ?? null,
     }));
   }, [transcripts, usePagination, segments]);
+
+  const mutations = useTranscriptMutations({
+meetingId: meetingId ?? "",
+meetingTitle: ((transcripts?.[0] as unknown as Record<string, unknown> | undefined)?.["meetingTitle"] as string) ?? "",
+    folderPath: meetingFolderPath ?? null,
+    segments: convertedSegments,
+    onSaved: () => {
+      onRefetchTranscripts?.();
+    },
+  });
 
   const speakerNames = useSpeakerNames(meetingId ?? null);
 
@@ -160,6 +173,8 @@ export function TranscriptPanel({
           onLoadMore={onLoadMore}
           customSpeakerNames={speakerNames.allNames}
           onSpeakerRename={speakerNames.setName}
+          onEditText={mutations.editSegmentText}
+          onMergeWithNext={mutations.mergeWithNext}
         />
       </div>
 

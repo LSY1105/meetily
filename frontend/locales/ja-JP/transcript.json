@@ -33,7 +33,7 @@
       "error": "音声の再生に失敗しました"
     }
   },
-  "settings": {
+  "settings": {    "segment": {      "edit": "セグメントを編集",      "save": "保存",      "cancel": "キャンセル",      "merge_with_next": "次のセグメントと合併",      "split_at_marker": "|で分割",      "menu": "セグメントアクション",      "save_hint": "Ctrl+Enter 銇т繚瀛樸€丒sc 銇с偔銉ｃ兂銈汇儷"    },
     "title": "文字起こし設定",
     "model": "モデル",
     "language": "言語",
