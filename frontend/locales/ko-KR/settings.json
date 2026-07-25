@@ -104,6 +104,11 @@
       "relative_days": "{count} 일 전",
       "relative_over_30_days": "30 일 이상 전"
     },
+    "models": {
+      "downloading": "다운누드 중…",
+      "downloading_pct": "{pct}%",
+      "cancel_download": "췤챌"
+    },
       "llm": {
         "test_connection": {
           "button": "Test connection",

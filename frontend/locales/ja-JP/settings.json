@@ -104,6 +104,11 @@
       "relative_days": "{count} 日前",
       "relative_over_30_days": "30 日以上前"
     },
+    "models": {
+      "downloading": "ダアンレード中…",
+      "downloading_pct": "{pct}%",
+      "cancel_download": "キャンセル"
+    },
       "llm": {
         "test_connection": {
           "button": "Test connection",
