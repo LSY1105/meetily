@@ -33,6 +33,8 @@
     "seconds": "{seconds} 秒"
   },
   "errors": {
+    "unexpected_stop": "錄音意外停止",
+    "unknown_message": "錄音意外停止",
     "init_failed": "錄音初始化失敗，請查看主控台詳細資訊。",
     "pause_failed": "暫停失敗，請查看主控台詳細資訊。",
     "resume_failed": "繼續失敗，請查看主控台詳細資訊。",

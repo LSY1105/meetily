@@ -25,6 +25,7 @@ import { RecordingPostProcessingProvider } from '@/contexts/RecordingPostProcess
 import { ImportAudioDialog, ImportDropOverlay } from '@/components/ImportAudio'
 import { OrphanCheckpointListener } from '@/components/OrphanCheckpointListener'
 import { RecoveryFailureBanner } from '@/components/RecoveryFailureBanner'
+import { RecordingErrorListener } from '@/components/RecordingErrorListener'
 import { ImportDialogProvider } from '@/contexts/ImportDialogContext'
 import { isAudioExtension, getAudioFormatsDisplayList } from '@/constants/audioFormats'
 
@@ -155,6 +156,7 @@ export default function ClientRootLayout({ children }: { children: React.ReactNo
   return (
     <AnalyticsProvider>
       <RecordingStateProvider>
+        <RecordingErrorListener />
         <TranscriptProvider>
           <ConfigProvider>
             <OllamaDownloadProvider>

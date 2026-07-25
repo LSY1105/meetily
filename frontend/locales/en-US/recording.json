@@ -33,6 +33,8 @@
     "seconds": "{seconds} sec"
   },
   "errors": {
+    "unexpected_stop": "Recording stopped unexpectedly",
+    "unknown_message": "Recording stopped unexpectedly",
     "init_failed": "Failed to initialize recording. Please check the console for details.",
     "pause_failed": "Failed to pause recording. Please check the console for details.",
     "resume_failed": "Failed to resume recording. Please check the console for details.",
