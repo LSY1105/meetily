@@ -104,6 +104,11 @@
       "relative_days": "{count} 天前",
       "relative_over_30_days": "30 天以上"
     },
+    "models": {
+      "downloading": "涓嬭浇涓?..",
+      "downloading_pct": "{pct}%",
+      "cancel_download": "取消"
+    },
       "llm": {
         "test_connection": {
           "button": "测试连接",

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { listen } from '@/lib/transport';
 import { invoke } from '@tauri-apps/api/core';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ModelDownloadStatus } from '@/components/ModelDownloadStatus';
 import { toast } from 'sonner';
 import {
   ParakeetModelInfo,
@@ -579,48 +580,12 @@ function ModelCard({
           </div>
         </div>
 
-        {/* Full-width Download Progress Bar - PROMINENT */}
         {downloadProgress !== null && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="mt-3 pt-3 border-t border-gray-200"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-blue-600">Downloading...</span>
-                <span className="text-sm font-semibold text-blue-600">{Math.round(downloadProgress)}%</span>
-              </div>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onCancel();
-                }}
-                className="text-xs text-gray-600 hover:text-red-600 font-medium transition-colors px-2 py-1 rounded hover:bg-red-50"
-                title="Cancel download"
-              >
-                Cancel
-              </button>
-            </div>
-            <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-              <motion.div
-                className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full"
-                initial={{ width: 0 }}
-                animate={{ width: `${downloadProgress}%` }}
-                transition={{ duration: 0.3, ease: 'easeOut' }}
-              />
-            </div>
-            <p className="text-xs text-gray-500 mt-1">
-              {model.size_mb ? (
-                <>
-                  {formatFileSize(model.size_mb * downloadProgress / 100)} / {formatFileSize(model.size_mb)}
-                </>
-              ) : (
-                'Downloading...'
-              )}
-            </p>
-          </motion.div>
+          <ModelDownloadStatus
+            progress={downloadProgress}
+            onCancel={onCancel}
+            sizeText={model.size_mb ? `${formatFileSize(model.size_mb * downloadProgress / 100)} / ${formatFileSize(model.size_mb)}` : undefined}
+          />
         )}
       </div>
     </motion.div>

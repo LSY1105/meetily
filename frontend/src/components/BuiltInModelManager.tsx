@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@/lib/transport';
 import { Button } from '@/components/ui/button';
+import { ModelDownloadStatus } from '@/components/ModelDownloadStatus';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 import { Download, RefreshCw, BadgeAlert, Trash2 } from 'lucide-react';
@@ -452,36 +453,17 @@ export function BuiltInModelManager({
                 </div>
               </div>
 
-              {/* Download progress bar */}
               {modelIsDownloading && progress !== undefined && (
-                <div className="mt-3 pt-3 border-t border-gray-200">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-medium text-gray-900">Downloading...</span>
-                    <span className="text-sm font-semibold text-gray-900">
-                      {Math.round(progress)}%
-                    </span>
-                  </div>
-                  <div className="text-sm text-gray-600 mb-2">
-                    {progressInfo?.totalMb > 0 ? (
-                      <>
-                        {progressInfo.downloadedMb.toFixed(1)} MiB / {progressInfo.totalMb.toFixed(1)} MiB
-                        {progressInfo.speedMbps > 0 && (
-                          <span className="ml-2 text-gray-500">
-                            ({progressInfo.speedMbps.toFixed(1)} MiB/s)
-                          </span>
-                        )}
-                      </>
-                    ) : (
-                      <span>{formatSummaryModelSizeLabelFromMb(model.size_mb)}</span>
-                    )}
-                  </div>
-                  <div className="w-full h-2.5 bg-gray-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-gray-800 to-gray-900 rounded-full transition-all duration-300"
-                      style={{ width: `${progress}%` }}
-                    />
-                  </div>
-                </div>
+                <ModelDownloadStatus
+                  progress={progress}
+                  sizeText={
+                    progressInfo?.totalMb > 0
+                      ? `${progressInfo.downloadedMb.toFixed(1)} MiB / ${progressInfo.totalMb.toFixed(1)} MiB${progressInfo.speedMbps > 0 ? ` (${progressInfo.speedMbps.toFixed(1)} MiB/s)` : ''}`
+                      : formatSummaryModelSizeLabelFromMb(model.size_mb)
+                  }
+                  labelClassName="text-gray-900"
+                  barClassName="from-gray-800 to-gray-900"
+                />
               )}
             </div>
           );
