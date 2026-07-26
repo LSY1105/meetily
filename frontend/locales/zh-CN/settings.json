@@ -10,7 +10,9 @@
     "beta": "Beta"
   },
   "shell": {
-    "back": "返回"
+    "back": "返回",
+    "search_placeholder": "搜索设置...",
+    "no_results": "无匹配设置"
   },
   "model": {
     "download": "下载模型",

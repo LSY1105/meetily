@@ -10,7 +10,9 @@
     "beta": "Beta"
   },
   "shell": {
-    "back": "Back"
+    "back": "Back",
+    "search_placeholder": "Search settings...",
+    "no_results": "No matching settings"
   },
   "model": {
     "download": "Download Model",

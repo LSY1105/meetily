@@ -10,7 +10,9 @@
     "beta": "베타"
   },
   "shell": {
-    "back": "뒤로"
+    "back": "뒤로",
+    "search_placeholder": "설정 검색...",
+    "no_results": "일치하는 설정이 없습니다"
   },
   "model": {
     "download": "모델 다운로드",
