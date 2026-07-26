@@ -8,7 +8,6 @@
     "check:i18n": "tsx scripts/check-i18n.ts",
     "dev": "next dev -p 3118",
     "export": "next export",
-    "lint": "next lint",
     "start": "next start -p 3118",
     "tauri": "tauri",
     "tauri:build": "node scripts/tauri-auto.js build",
