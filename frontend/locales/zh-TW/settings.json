@@ -10,7 +10,9 @@
     "beta": "Beta"
   },
   "shell": {
-    "back": "返回"
+    "back": "返回",
+    "search_placeholder": "搜尋設定...",
+    "no_results": "無符合的設定"
   },
   "model": {
     "download": "下載模型",
