@@ -23,6 +23,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Location**: `/frontend`
 
+**Quickstart (recommended):**
+
+```bash
+# from repo root
+./scripts/quickstart.sh        # macOS / Linux
+# or
+scripts\quickstart.bat         # Windows
+```
+
+Checks for `node` / `pnpm` / `cargo`, runs `pnpm install` on first run, then `pnpm tauri:dev`. Falls through to the manual commands below if you want finer control.
+
 ```bash
 # macOS Development
 ./clean_run.sh              # Clean build and run with info logging
