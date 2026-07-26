@@ -1,6 +1,11 @@
 @echo off
 REM Quickstart for meetily (Windows).
 REM One-shot: checks Node / pnpm / Rust, installs frontend deps on first run, then launches Tauri dev.
+REM
+REM Every error path pauses before exit so the cmd window doesn't close on the
+REM user (Windows closes the window the moment a .bat exits non-zero, so without
+REM a pause the error message gets lost). The final pause also fires if
+REM 'pnpm tauri:dev' exits unexpectedly (e.g. port conflict, cargo build failure).
 
 setlocal
 
@@ -10,6 +15,8 @@ where node >nul 2>&1
 if errorlevel 1 (
   echo Error: node is not installed.
   echo   Get it from: https://nodejs.org/
+  echo.
+  pause
   exit /b 1
 )
 
@@ -26,6 +33,8 @@ if errorlevel 1 (
   ) else (
     echo Error: pnpm is not installed.
     echo   Get it from: https://pnpm.io/installation
+    echo.
+    pause
     exit /b 1
   )
 )
@@ -34,6 +43,8 @@ where cargo >nul 2>&1
 if errorlevel 1 (
   echo Error: cargo is not installed.
   echo   Get it from: https://rustup.rs/
+  echo.
+  pause
   exit /b 1
 )
 
@@ -43,7 +54,9 @@ if not exist node_modules (
   echo First run: installing frontend dependencies...
   call "%PNPM%" install --frozen-lockfile
   if errorlevel 1 (
-    echo Error: pnpm install failed.
+    echo.
+    echo pnpm install failed.
+    pause
     exit /b 1
   )
 ) else (
@@ -52,3 +65,6 @@ if not exist node_modules (
 
 echo Starting Tauri dev (Ctrl+C to stop)...
 "%PNPM%" tauri:dev
+echo.
+echo Tauri dev exited. Press any key to close this window.
+pause >nul
