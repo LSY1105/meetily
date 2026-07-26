@@ -11,6 +11,10 @@
 #
 # All output is also appended to quickstart.log at the repo root so that even
 # if every terminal/Tauri window closes the diagnostic trail is on disk.
+#
+# pnpm invocations always pass '-C frontend' rather than relying on the
+# shell's cwd, for symmetry with the Windows script and to keep pnpm's
+# package.json lookup robust against any path-resolution quirk.
 
 set -e
 
@@ -28,7 +32,7 @@ LOG="$(pwd)/quickstart.log"
 log() { printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1" >> "$LOG"; }
 die() { echo "Error: $1" >&2; echo "  Full log: $LOG" >&2; log "$1"; exit 1; }
 
-log "quickstart starting"
+log "quickstart starting; cwd=$(pwd)"
 echo "Log: $LOG"
 
 if ! command -v node >/dev/null 2>&1; then
@@ -43,20 +47,18 @@ if ! command -v cargo >/dev/null 2>&1; then
   die "cargo is not installed. Get it from: https://rustup.rs/"
 fi
 
-cd frontend
-
-if [ ! -d node_modules ]; then
-  log "running pnpm install --frozen-lockfile"
-  if ! pnpm install --frozen-lockfile >>"$LOG" 2>&1; then
+if [ ! -d frontend/node_modules ]; then
+  log "running pnpm -C frontend install --frozen-lockfile"
+  if ! pnpm -C frontend install --frozen-lockfile >>"$LOG" 2>&1; then
     die "pnpm install failed (see $LOG)"
   fi
 else
-  log "node_modules present; skipping install"
+  log "frontend/node_modules present; skipping install"
 fi
 
-log "starting pnpm tauri:dev"
+log "starting pnpm -C frontend tauri:dev"
 echo "Starting Tauri dev (Ctrl+C to stop)..."
-if ! pnpm tauri:dev >>"$LOG" 2>&1; then
+if ! pnpm -C frontend tauri:dev >>"$LOG" 2>&1; then
   log "pnpm tauri:dev exited with code $?"
 fi
 echo
