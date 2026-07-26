@@ -126,9 +126,9 @@ Build from source following our detailed guides:
 
 ```bash
 git clone https://github.com/Zackriya-Solutions/meeting-minutes
-cd meeting-minutes/frontend
-pnpm install
-./build-gpu.sh
+cd meeting-minutes
+./scripts/quickstart.sh        # macOS / Linux
+# or: scripts\quickstart.bat   # Windows
 ```
 
 ## Key Features in Action
