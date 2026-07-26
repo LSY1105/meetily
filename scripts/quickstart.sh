@@ -2,6 +2,12 @@
 # Quickstart for meetily (macOS / Linux).
 # One-shot: checks Node / pnpm / Rust, installs frontend deps on first run, then launches Tauri dev.
 # Re-run anytime; safe to invoke repeatedly.
+#
+# Final 'read' holds the terminal open if 'pnpm tauri:dev' exits unexpectedly
+# (e.g. port conflict, cargo build failure). On a normal Ctrl+C of the dev
+# server, control returns here and the same read keeps the terminal visible
+# long enough for the user to read any output. In a non-interactive context
+# (no tty, CI) the read returns immediately and the script exits cleanly.
 
 set -e
 
@@ -41,4 +47,7 @@ else
 fi
 
 echo "Starting Tauri dev (Ctrl+C to stop)..."
-exec pnpm tauri:dev
+pnpm tauri:dev
+echo
+echo "Tauri dev exited. Press Enter to close this window."
+[ -t 0 ] && read -r _ || true
