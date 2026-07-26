@@ -8,6 +8,9 @@
 # server, control returns here and the same read keeps the terminal visible
 # long enough for the user to read any output. In a non-interactive context
 # (no tty, CI) the read returns immediately and the script exits cleanly.
+#
+# All output is also appended to quickstart.log at the repo root so that even
+# if every terminal/Tauri window closes the diagnostic trail is on disk.
 
 set -e
 
@@ -19,35 +22,44 @@ case "${BASH_SOURCE[0]}" in
 esac
 cd "$SELF_DIR/.."
 
+LOG="$(pwd)/quickstart.log"
+: > "$LOG"
+
+log() { printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1" >> "$LOG"; }
+die() { echo "Error: $1" >&2; echo "  Full log: $LOG" >&2; log "$1"; exit 1; }
+
+log "quickstart starting"
+echo "Log: $LOG"
+
 if ! command -v node >/dev/null 2>&1; then
-  echo "Error: node is not installed." >&2
-  echo "  Get it from: https://nodejs.org/" >&2
-  exit 1
+  die "node is not installed. Get it from: https://nodejs.org/"
 fi
 
 if ! command -v pnpm >/dev/null 2>&1; then
-  echo "Error: pnpm is not installed." >&2
-  echo "  Get it from: https://pnpm.io/installation" >&2
-  exit 1
+  die "pnpm is not installed. Get it from: https://pnpm.io/installation"
 fi
 
 if ! command -v cargo >/dev/null 2>&1; then
-  echo "Error: cargo is not installed." >&2
-  echo "  Get it from: https://rustup.rs/" >&2
-  exit 1
+  die "cargo is not installed. Get it from: https://rustup.rs/"
 fi
 
 cd frontend
 
 if [ ! -d node_modules ]; then
-  echo "First run: installing frontend dependencies..."
-  pnpm install --frozen-lockfile
+  log "running pnpm install --frozen-lockfile"
+  if ! pnpm install --frozen-lockfile >>"$LOG" 2>&1; then
+    die "pnpm install failed (see $LOG)"
+  fi
 else
-  echo "node_modules present; skipping install."
+  log "node_modules present; skipping install"
 fi
 
+log "starting pnpm tauri:dev"
 echo "Starting Tauri dev (Ctrl+C to stop)..."
-pnpm tauri:dev
+if ! pnpm tauri:dev >>"$LOG" 2>&1; then
+  log "pnpm tauri:dev exited with code $?"
+fi
 echo
-echo "Tauri dev exited. Press Enter to close this window."
+echo "Tauri dev exited. See log: $LOG"
+echo "Press Enter to close this window."
 [ -t 0 ] && read -r _ || true
