@@ -12,15 +12,14 @@ REM if every window closes (Tauri app crash taking the console group with it,
 REM user clicking through the cmd window too fast, etc.) the diagnostic trail
 REM is on disk.
 REM
-REM pnpm invocations always pass '-C frontend' rather than relying on the
-REM batch script's cwd. Some Windows console hosts / .cmd wrappers reset or
-REM ignore the calling shell's cwd, which leaves pnpm looking for package.json
-REM in the wrong directory.
+REM pnpm invocations use the absolute frontend path so the command remains
+REM independent of the caller's working directory.
 
 setlocal
 
-cd /d "%~dp0\.."
+cd /d "%~dp0.."
 set "LOG=%CD%\quickstart.log"
+set "FRONTEND=%CD%\frontend"
 echo. > "%LOG%"
 
 call :log "quickstart starting (Windows); cwd=%CD%"
@@ -63,9 +62,9 @@ if errorlevel 1 (
   exit /b 1
 )
 
-if not exist "frontend\node_modules" (
-  call :log "running pnpm -C frontend install --frozen-lockfile"
-  call "%PNPM%" -C frontend install --frozen-lockfile 1>>"%LOG%" 2>&1
+if not exist "%FRONTEND%\node_modules" (
+  call :log "running pnpm -C %FRONTEND% install --frozen-lockfile"
+  call "%PNPM%" -C "%FRONTEND%" install --frozen-lockfile 1>>"%LOG%" 2>&1
   if errorlevel 1 (
     call :err "pnpm install failed (see %LOG%)"
     call :pause_keep_open
@@ -75,9 +74,9 @@ if not exist "frontend\node_modules" (
   call :log "frontend\node_modules present; skipping install"
 )
 
-call :log "starting pnpm -C frontend tauri:dev"
+call :log "starting pnpm -C %FRONTEND% tauri:dev"
 echo Starting Tauri dev (Ctrl+C to stop)...
-"%PNPM%" -C frontend tauri:dev 1>>"%LOG%" 2>&1
+"%PNPM%" -C "%FRONTEND%" tauri:dev 1>>"%LOG%" 2>&1
 call :log "pnpm tauri:dev exited with code %ERRORLEVEL%"
 echo.
 echo Tauri dev exited. See log: %LOG%
