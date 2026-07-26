@@ -5,7 +5,13 @@
 
 set -e
 
-cd "$(dirname "$0")/.."
+# Resolve script directory without depending on the `dirname` utility
+# (not present in minimal bash installs like the Windows App Installer bash shim).
+case "${BASH_SOURCE[0]}" in
+  */*) SELF_DIR="${BASH_SOURCE[0]%/*}" ;;
+  *)   SELF_DIR="." ;;
+esac
+cd "$SELF_DIR/.."
 
 if ! command -v node >/dev/null 2>&1; then
   echo "Error: node is not installed." >&2

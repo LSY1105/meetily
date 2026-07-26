@@ -13,11 +13,21 @@ if errorlevel 1 (
   exit /b 1
 )
 
+REM pnpm detection: prefer PATH; fall back to the two common Windows install
+REM locations (npm-global puts pnpm.cmd in %AppData%\npm; the standalone
+REM installer from pnpm.io puts pnpm.exe in %LocalAppData%\pnpm).
+set "PNPM=pnpm"
 where pnpm >nul 2>&1
 if errorlevel 1 (
-  echo Error: pnpm is not installed.
-  echo   Get it from: https://pnpm.io/installation
-  exit /b 1
+  if exist "%AppData%\npm\pnpm.cmd" (
+    set "PNPM=%AppData%\npm\pnpm.cmd"
+  ) else if exist "%LocalAppData%\pnpm\pnpm.exe" (
+    set "PNPM=%LocalAppData%\pnpm\pnpm.exe"
+  ) else (
+    echo Error: pnpm is not installed.
+    echo   Get it from: https://pnpm.io/installation
+    exit /b 1
+  )
 )
 
 where cargo >nul 2>&1
@@ -31,10 +41,14 @@ cd frontend
 
 if not exist node_modules (
   echo First run: installing frontend dependencies...
-  call pnpm install --frozen-lockfile
+  call "%PNPM%" install --frozen-lockfile
+  if errorlevel 1 (
+    echo Error: pnpm install failed.
+    exit /b 1
+  )
 ) else (
   echo node_modules present; skipping install.
 )
 
 echo Starting Tauri dev (Ctrl+C to stop)...
-pnpm tauri:dev
+"%PNPM%" tauri:dev
