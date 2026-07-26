@@ -1,14 +1,14 @@
-import { afterEach, describe, expect, mock, test } from "bun:test";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { blocksToMarkdownSafely } from "../../src/lib/blocknote-markdown";
 
 describe("blocksToMarkdownSafely", () => {
   afterEach(() => {
-    mock.restore();
+    vi.restoreAllMocks();
   });
 
   test("returns markdown when conversion succeeds", async () => {
     const editor = {
-      blocksToMarkdownLossy: mock(async () => "# Summary"),
+      blocksToMarkdownLossy: vi.fn(async () => "# Summary"),
     };
 
     const result = await blocksToMarkdownSafely(editor, [] as any, {
@@ -25,11 +25,11 @@ describe("blocksToMarkdownSafely", () => {
   test("returns fallback markdown when conversion throws", async () => {
     const error = new Error("conversion failed");
     const editor = {
-      blocksToMarkdownLossy: mock(async () => {
+      blocksToMarkdownLossy: vi.fn(async () => {
         throw error;
       }),
     };
-    const consoleError = mock(() => {});
+    const consoleError = vi.fn(() => {});
     console.error = consoleError as any;
 
     const result = await blocksToMarkdownSafely(editor, [{ id: "block-1" }] as any, {
@@ -54,11 +54,11 @@ describe("blocksToMarkdownSafely", () => {
 
   test("omits markdown when conversion throws without fallback", async () => {
     const editor = {
-      blocksToMarkdownLossy: mock(async () => {
+      blocksToMarkdownLossy: vi.fn(async () => {
         throw new Error("conversion failed");
       }),
     };
-    console.error = mock(() => {}) as any;
+    console.error = vi.fn(() => {}) as any;
 
     const result = await blocksToMarkdownSafely(editor, [] as any, {
       source: "test-empty-fallback",
