@@ -178,14 +178,6 @@ pub struct max_align_t {
     pub __clang_max_align_nonce2: u128,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of max_align_t"][::std::mem::size_of::<max_align_t>() - 32usize];
-    ["Alignment of max_align_t"][::std::mem::align_of::<max_align_t>() - 16usize];
-    ["Offset of field: max_align_t::__clang_max_align_nonce1"]
-        [::std::mem::offset_of!(max_align_t, __clang_max_align_nonce1) - 0usize];
-    ["Offset of field: max_align_t::__clang_max_align_nonce2"]
-        [::std::mem::offset_of!(max_align_t, __clang_max_align_nonce2) - 16usize];
-};
 pub type __u_char = ::std::os::raw::c_uchar;
 pub type __u_short = ::std::os::raw::c_ushort;
 pub type __u_int = ::std::os::raw::c_uint;
@@ -226,11 +218,6 @@ pub struct __fsid_t {
     pub __val: [::std::os::raw::c_int; 2usize],
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of __fsid_t"][::std::mem::size_of::<__fsid_t>() - 8usize];
-    ["Alignment of __fsid_t"][::std::mem::align_of::<__fsid_t>() - 4usize];
-    ["Offset of field: __fsid_t::__val"][::std::mem::offset_of!(__fsid_t, __val) - 0usize];
-};
 pub type __clock_t = ::std::os::raw::c_long;
 pub type __rlim_t = ::std::os::raw::c_ulong;
 pub type __rlim64_t = ::std::os::raw::c_ulong;
@@ -291,25 +278,7 @@ pub union __mbstate_t__bindgen_ty_1 {
     pub __wchb: [::std::os::raw::c_char; 4usize],
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of __mbstate_t__bindgen_ty_1"]
-        [::std::mem::size_of::<__mbstate_t__bindgen_ty_1>() - 4usize];
-    ["Alignment of __mbstate_t__bindgen_ty_1"]
-        [::std::mem::align_of::<__mbstate_t__bindgen_ty_1>() - 4usize];
-    ["Offset of field: __mbstate_t__bindgen_ty_1::__wch"]
-        [::std::mem::offset_of!(__mbstate_t__bindgen_ty_1, __wch) - 0usize];
-    ["Offset of field: __mbstate_t__bindgen_ty_1::__wchb"]
-        [::std::mem::offset_of!(__mbstate_t__bindgen_ty_1, __wchb) - 0usize];
-};
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of __mbstate_t"][::std::mem::size_of::<__mbstate_t>() - 8usize];
-    ["Alignment of __mbstate_t"][::std::mem::align_of::<__mbstate_t>() - 4usize];
-    ["Offset of field: __mbstate_t::__count"]
-        [::std::mem::offset_of!(__mbstate_t, __count) - 0usize];
-    ["Offset of field: __mbstate_t::__value"]
-        [::std::mem::offset_of!(__mbstate_t, __value) - 4usize];
-};
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct _G_fpos_t {
@@ -317,12 +286,6 @@ pub struct _G_fpos_t {
     pub __state: __mbstate_t,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of _G_fpos_t"][::std::mem::size_of::<_G_fpos_t>() - 16usize];
-    ["Alignment of _G_fpos_t"][::std::mem::align_of::<_G_fpos_t>() - 8usize];
-    ["Offset of field: _G_fpos_t::__pos"][::std::mem::offset_of!(_G_fpos_t, __pos) - 0usize];
-    ["Offset of field: _G_fpos_t::__state"][::std::mem::offset_of!(_G_fpos_t, __state) - 8usize];
-};
 pub type __fpos_t = _G_fpos_t;
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -331,13 +294,6 @@ pub struct _G_fpos64_t {
     pub __state: __mbstate_t,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of _G_fpos64_t"][::std::mem::size_of::<_G_fpos64_t>() - 16usize];
-    ["Alignment of _G_fpos64_t"][::std::mem::align_of::<_G_fpos64_t>() - 8usize];
-    ["Offset of field: _G_fpos64_t::__pos"][::std::mem::offset_of!(_G_fpos64_t, __pos) - 0usize];
-    ["Offset of field: _G_fpos64_t::__state"]
-        [::std::mem::offset_of!(_G_fpos64_t, __state) - 8usize];
-};
 pub type __fpos64_t = _G_fpos64_t;
 pub type __FILE = _IO_FILE;
 pub type FILE = _IO_FILE;
@@ -391,58 +347,6 @@ pub struct _IO_FILE {
     pub _unused2: [::std::os::raw::c_char; 20usize],
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of _IO_FILE"][::std::mem::size_of::<_IO_FILE>() - 216usize];
-    ["Alignment of _IO_FILE"][::std::mem::align_of::<_IO_FILE>() - 8usize];
-    ["Offset of field: _IO_FILE::_flags"][::std::mem::offset_of!(_IO_FILE, _flags) - 0usize];
-    ["Offset of field: _IO_FILE::_IO_read_ptr"]
-        [::std::mem::offset_of!(_IO_FILE, _IO_read_ptr) - 8usize];
-    ["Offset of field: _IO_FILE::_IO_read_end"]
-        [::std::mem::offset_of!(_IO_FILE, _IO_read_end) - 16usize];
-    ["Offset of field: _IO_FILE::_IO_read_base"]
-        [::std::mem::offset_of!(_IO_FILE, _IO_read_base) - 24usize];
-    ["Offset of field: _IO_FILE::_IO_write_base"]
-        [::std::mem::offset_of!(_IO_FILE, _IO_write_base) - 32usize];
-    ["Offset of field: _IO_FILE::_IO_write_ptr"]
-        [::std::mem::offset_of!(_IO_FILE, _IO_write_ptr) - 40usize];
-    ["Offset of field: _IO_FILE::_IO_write_end"]
-        [::std::mem::offset_of!(_IO_FILE, _IO_write_end) - 48usize];
-    ["Offset of field: _IO_FILE::_IO_buf_base"]
-        [::std::mem::offset_of!(_IO_FILE, _IO_buf_base) - 56usize];
-    ["Offset of field: _IO_FILE::_IO_buf_end"]
-        [::std::mem::offset_of!(_IO_FILE, _IO_buf_end) - 64usize];
-    ["Offset of field: _IO_FILE::_IO_save_base"]
-        [::std::mem::offset_of!(_IO_FILE, _IO_save_base) - 72usize];
-    ["Offset of field: _IO_FILE::_IO_backup_base"]
-        [::std::mem::offset_of!(_IO_FILE, _IO_backup_base) - 80usize];
-    ["Offset of field: _IO_FILE::_IO_save_end"]
-        [::std::mem::offset_of!(_IO_FILE, _IO_save_end) - 88usize];
-    ["Offset of field: _IO_FILE::_markers"][::std::mem::offset_of!(_IO_FILE, _markers) - 96usize];
-    ["Offset of field: _IO_FILE::_chain"][::std::mem::offset_of!(_IO_FILE, _chain) - 104usize];
-    ["Offset of field: _IO_FILE::_fileno"][::std::mem::offset_of!(_IO_FILE, _fileno) - 112usize];
-    ["Offset of field: _IO_FILE::_flags2"][::std::mem::offset_of!(_IO_FILE, _flags2) - 116usize];
-    ["Offset of field: _IO_FILE::_old_offset"]
-        [::std::mem::offset_of!(_IO_FILE, _old_offset) - 120usize];
-    ["Offset of field: _IO_FILE::_cur_column"]
-        [::std::mem::offset_of!(_IO_FILE, _cur_column) - 128usize];
-    ["Offset of field: _IO_FILE::_vtable_offset"]
-        [::std::mem::offset_of!(_IO_FILE, _vtable_offset) - 130usize];
-    ["Offset of field: _IO_FILE::_shortbuf"]
-        [::std::mem::offset_of!(_IO_FILE, _shortbuf) - 131usize];
-    ["Offset of field: _IO_FILE::_lock"][::std::mem::offset_of!(_IO_FILE, _lock) - 136usize];
-    ["Offset of field: _IO_FILE::_offset"][::std::mem::offset_of!(_IO_FILE, _offset) - 144usize];
-    ["Offset of field: _IO_FILE::_codecvt"][::std::mem::offset_of!(_IO_FILE, _codecvt) - 152usize];
-    ["Offset of field: _IO_FILE::_wide_data"]
-        [::std::mem::offset_of!(_IO_FILE, _wide_data) - 160usize];
-    ["Offset of field: _IO_FILE::_freeres_list"]
-        [::std::mem::offset_of!(_IO_FILE, _freeres_list) - 168usize];
-    ["Offset of field: _IO_FILE::_freeres_buf"]
-        [::std::mem::offset_of!(_IO_FILE, _freeres_buf) - 176usize];
-    ["Offset of field: _IO_FILE::_prevchain"]
-        [::std::mem::offset_of!(_IO_FILE, _prevchain) - 184usize];
-    ["Offset of field: _IO_FILE::_mode"][::std::mem::offset_of!(_IO_FILE, _mode) - 192usize];
-    ["Offset of field: _IO_FILE::_unused2"][::std::mem::offset_of!(_IO_FILE, _unused2) - 196usize];
-};
 pub type cookie_read_function_t = ::std::option::Option<
     unsafe extern "C" fn(
         __cookie: *mut ::std::os::raw::c_void,
@@ -476,20 +380,6 @@ pub struct _IO_cookie_io_functions_t {
     pub close: cookie_close_function_t,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of _IO_cookie_io_functions_t"]
-        [::std::mem::size_of::<_IO_cookie_io_functions_t>() - 32usize];
-    ["Alignment of _IO_cookie_io_functions_t"]
-        [::std::mem::align_of::<_IO_cookie_io_functions_t>() - 8usize];
-    ["Offset of field: _IO_cookie_io_functions_t::read"]
-        [::std::mem::offset_of!(_IO_cookie_io_functions_t, read) - 0usize];
-    ["Offset of field: _IO_cookie_io_functions_t::write"]
-        [::std::mem::offset_of!(_IO_cookie_io_functions_t, write) - 8usize];
-    ["Offset of field: _IO_cookie_io_functions_t::seek"]
-        [::std::mem::offset_of!(_IO_cookie_io_functions_t, seek) - 16usize];
-    ["Offset of field: _IO_cookie_io_functions_t::close"]
-        [::std::mem::offset_of!(_IO_cookie_io_functions_t, close) - 24usize];
-};
 pub type cookie_io_functions_t = _IO_cookie_io_functions_t;
 pub type va_list = __gnuc_va_list;
 pub type off_t = __off_t;
@@ -1002,11 +892,6 @@ pub struct ggml_bf16_t {
     pub bits: u16,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of ggml_bf16_t"][::std::mem::size_of::<ggml_bf16_t>() - 2usize];
-    ["Alignment of ggml_bf16_t"][::std::mem::align_of::<ggml_bf16_t>() - 2usize];
-    ["Offset of field: ggml_bf16_t::bits"][::std::mem::offset_of!(ggml_bf16_t, bits) - 0usize];
-};
 extern "C" {
     pub fn ggml_fp32_to_bf16(arg1: f32) -> ggml_bf16_t;
 }
@@ -1243,29 +1128,6 @@ pub struct ggml_tensor {
     pub extra: *mut ::std::os::raw::c_void,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of ggml_tensor"][::std::mem::size_of::<ggml_tensor>() - 336usize];
-    ["Alignment of ggml_tensor"][::std::mem::align_of::<ggml_tensor>() - 8usize];
-    ["Offset of field: ggml_tensor::type_"][::std::mem::offset_of!(ggml_tensor, type_) - 0usize];
-    ["Offset of field: ggml_tensor::backend"]
-        [::std::mem::offset_of!(ggml_tensor, backend) - 4usize];
-    ["Offset of field: ggml_tensor::buffer"][::std::mem::offset_of!(ggml_tensor, buffer) - 8usize];
-    ["Offset of field: ggml_tensor::ne"][::std::mem::offset_of!(ggml_tensor, ne) - 16usize];
-    ["Offset of field: ggml_tensor::nb"][::std::mem::offset_of!(ggml_tensor, nb) - 48usize];
-    ["Offset of field: ggml_tensor::op"][::std::mem::offset_of!(ggml_tensor, op) - 80usize];
-    ["Offset of field: ggml_tensor::op_params"]
-        [::std::mem::offset_of!(ggml_tensor, op_params) - 84usize];
-    ["Offset of field: ggml_tensor::flags"][::std::mem::offset_of!(ggml_tensor, flags) - 148usize];
-    ["Offset of field: ggml_tensor::grad"][::std::mem::offset_of!(ggml_tensor, grad) - 152usize];
-    ["Offset of field: ggml_tensor::src"][::std::mem::offset_of!(ggml_tensor, src) - 160usize];
-    ["Offset of field: ggml_tensor::view_src"]
-        [::std::mem::offset_of!(ggml_tensor, view_src) - 240usize];
-    ["Offset of field: ggml_tensor::view_offs"]
-        [::std::mem::offset_of!(ggml_tensor, view_offs) - 248usize];
-    ["Offset of field: ggml_tensor::data"][::std::mem::offset_of!(ggml_tensor, data) - 256usize];
-    ["Offset of field: ggml_tensor::name"][::std::mem::offset_of!(ggml_tensor, name) - 264usize];
-    ["Offset of field: ggml_tensor::extra"][::std::mem::offset_of!(ggml_tensor, extra) - 328usize];
-};
 pub const GGML_TENSOR_SIZE: usize = 336;
 pub type ggml_abort_callback =
     ::std::option::Option<unsafe extern "C" fn(data: *mut ::std::os::raw::c_void) -> bool>;
@@ -1285,23 +1147,6 @@ pub struct ggml_threadpool_params {
     pub paused: bool,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of ggml_threadpool_params"][::std::mem::size_of::<ggml_threadpool_params>() - 528usize];
-    ["Alignment of ggml_threadpool_params"]
-        [::std::mem::align_of::<ggml_threadpool_params>() - 4usize];
-    ["Offset of field: ggml_threadpool_params::cpumask"]
-        [::std::mem::offset_of!(ggml_threadpool_params, cpumask) - 0usize];
-    ["Offset of field: ggml_threadpool_params::n_threads"]
-        [::std::mem::offset_of!(ggml_threadpool_params, n_threads) - 512usize];
-    ["Offset of field: ggml_threadpool_params::prio"]
-        [::std::mem::offset_of!(ggml_threadpool_params, prio) - 516usize];
-    ["Offset of field: ggml_threadpool_params::poll"]
-        [::std::mem::offset_of!(ggml_threadpool_params, poll) - 520usize];
-    ["Offset of field: ggml_threadpool_params::strict_cpu"]
-        [::std::mem::offset_of!(ggml_threadpool_params, strict_cpu) - 524usize];
-    ["Offset of field: ggml_threadpool_params::paused"]
-        [::std::mem::offset_of!(ggml_threadpool_params, paused) - 525usize];
-};
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct ggml_threadpool {
@@ -1319,22 +1164,6 @@ pub struct ggml_cplan {
     pub abort_callback_data: *mut ::std::os::raw::c_void,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of ggml_cplan"][::std::mem::size_of::<ggml_cplan>() - 48usize];
-    ["Alignment of ggml_cplan"][::std::mem::align_of::<ggml_cplan>() - 8usize];
-    ["Offset of field: ggml_cplan::work_size"]
-        [::std::mem::offset_of!(ggml_cplan, work_size) - 0usize];
-    ["Offset of field: ggml_cplan::work_data"]
-        [::std::mem::offset_of!(ggml_cplan, work_data) - 8usize];
-    ["Offset of field: ggml_cplan::n_threads"]
-        [::std::mem::offset_of!(ggml_cplan, n_threads) - 16usize];
-    ["Offset of field: ggml_cplan::threadpool"]
-        [::std::mem::offset_of!(ggml_cplan, threadpool) - 24usize];
-    ["Offset of field: ggml_cplan::abort_callback"]
-        [::std::mem::offset_of!(ggml_cplan, abort_callback) - 32usize];
-    ["Offset of field: ggml_cplan::abort_callback_data"]
-        [::std::mem::offset_of!(ggml_cplan, abort_callback_data) - 40usize];
-};
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct ggml_scratch {
@@ -1343,13 +1172,6 @@ pub struct ggml_scratch {
     pub data: *mut ::std::os::raw::c_void,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of ggml_scratch"][::std::mem::size_of::<ggml_scratch>() - 24usize];
-    ["Alignment of ggml_scratch"][::std::mem::align_of::<ggml_scratch>() - 8usize];
-    ["Offset of field: ggml_scratch::offs"][::std::mem::offset_of!(ggml_scratch, offs) - 0usize];
-    ["Offset of field: ggml_scratch::size"][::std::mem::offset_of!(ggml_scratch, size) - 8usize];
-    ["Offset of field: ggml_scratch::data"][::std::mem::offset_of!(ggml_scratch, data) - 16usize];
-};
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct ggml_init_params {
@@ -1358,16 +1180,6 @@ pub struct ggml_init_params {
     pub no_alloc: bool,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of ggml_init_params"][::std::mem::size_of::<ggml_init_params>() - 24usize];
-    ["Alignment of ggml_init_params"][::std::mem::align_of::<ggml_init_params>() - 8usize];
-    ["Offset of field: ggml_init_params::mem_size"]
-        [::std::mem::offset_of!(ggml_init_params, mem_size) - 0usize];
-    ["Offset of field: ggml_init_params::mem_buffer"]
-        [::std::mem::offset_of!(ggml_init_params, mem_buffer) - 8usize];
-    ["Offset of field: ggml_init_params::no_alloc"]
-        [::std::mem::offset_of!(ggml_init_params, no_alloc) - 16usize];
-};
 pub const ggml_numa_strategy_GGML_NUMA_STRATEGY_DISABLED: ggml_numa_strategy = 0;
 pub const ggml_numa_strategy_GGML_NUMA_STRATEGY_DISTRIBUTE: ggml_numa_strategy = 1;
 pub const ggml_numa_strategy_GGML_NUMA_STRATEGY_ISOLATE: ggml_numa_strategy = 2;
@@ -3221,34 +3033,6 @@ pub struct ggml_opt_params__bindgen_ty_1 {
     pub gclip: f32,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of ggml_opt_params__bindgen_ty_1"]
-        [::std::mem::size_of::<ggml_opt_params__bindgen_ty_1>() - 44usize];
-    ["Alignment of ggml_opt_params__bindgen_ty_1"]
-        [::std::mem::align_of::<ggml_opt_params__bindgen_ty_1>() - 4usize];
-    ["Offset of field: ggml_opt_params__bindgen_ty_1::n_iter"]
-        [::std::mem::offset_of!(ggml_opt_params__bindgen_ty_1, n_iter) - 0usize];
-    ["Offset of field: ggml_opt_params__bindgen_ty_1::sched"]
-        [::std::mem::offset_of!(ggml_opt_params__bindgen_ty_1, sched) - 4usize];
-    ["Offset of field: ggml_opt_params__bindgen_ty_1::decay"]
-        [::std::mem::offset_of!(ggml_opt_params__bindgen_ty_1, decay) - 8usize];
-    ["Offset of field: ggml_opt_params__bindgen_ty_1::decay_min_ndim"]
-        [::std::mem::offset_of!(ggml_opt_params__bindgen_ty_1, decay_min_ndim) - 12usize];
-    ["Offset of field: ggml_opt_params__bindgen_ty_1::alpha"]
-        [::std::mem::offset_of!(ggml_opt_params__bindgen_ty_1, alpha) - 16usize];
-    ["Offset of field: ggml_opt_params__bindgen_ty_1::beta1"]
-        [::std::mem::offset_of!(ggml_opt_params__bindgen_ty_1, beta1) - 20usize];
-    ["Offset of field: ggml_opt_params__bindgen_ty_1::beta2"]
-        [::std::mem::offset_of!(ggml_opt_params__bindgen_ty_1, beta2) - 24usize];
-    ["Offset of field: ggml_opt_params__bindgen_ty_1::eps"]
-        [::std::mem::offset_of!(ggml_opt_params__bindgen_ty_1, eps) - 28usize];
-    ["Offset of field: ggml_opt_params__bindgen_ty_1::eps_f"]
-        [::std::mem::offset_of!(ggml_opt_params__bindgen_ty_1, eps_f) - 32usize];
-    ["Offset of field: ggml_opt_params__bindgen_ty_1::eps_g"]
-        [::std::mem::offset_of!(ggml_opt_params__bindgen_ty_1, eps_g) - 36usize];
-    ["Offset of field: ggml_opt_params__bindgen_ty_1::gclip"]
-        [::std::mem::offset_of!(ggml_opt_params__bindgen_ty_1, gclip) - 40usize];
-};
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct ggml_opt_params__bindgen_ty_2 {
@@ -3263,57 +3047,7 @@ pub struct ggml_opt_params__bindgen_ty_2 {
     pub linesearch: ggml_linesearch,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of ggml_opt_params__bindgen_ty_2"]
-        [::std::mem::size_of::<ggml_opt_params__bindgen_ty_2>() - 36usize];
-    ["Alignment of ggml_opt_params__bindgen_ty_2"]
-        [::std::mem::align_of::<ggml_opt_params__bindgen_ty_2>() - 4usize];
-    ["Offset of field: ggml_opt_params__bindgen_ty_2::m"]
-        [::std::mem::offset_of!(ggml_opt_params__bindgen_ty_2, m) - 0usize];
-    ["Offset of field: ggml_opt_params__bindgen_ty_2::n_iter"]
-        [::std::mem::offset_of!(ggml_opt_params__bindgen_ty_2, n_iter) - 4usize];
-    ["Offset of field: ggml_opt_params__bindgen_ty_2::max_linesearch"]
-        [::std::mem::offset_of!(ggml_opt_params__bindgen_ty_2, max_linesearch) - 8usize];
-    ["Offset of field: ggml_opt_params__bindgen_ty_2::eps"]
-        [::std::mem::offset_of!(ggml_opt_params__bindgen_ty_2, eps) - 12usize];
-    ["Offset of field: ggml_opt_params__bindgen_ty_2::ftol"]
-        [::std::mem::offset_of!(ggml_opt_params__bindgen_ty_2, ftol) - 16usize];
-    ["Offset of field: ggml_opt_params__bindgen_ty_2::wolfe"]
-        [::std::mem::offset_of!(ggml_opt_params__bindgen_ty_2, wolfe) - 20usize];
-    ["Offset of field: ggml_opt_params__bindgen_ty_2::min_step"]
-        [::std::mem::offset_of!(ggml_opt_params__bindgen_ty_2, min_step) - 24usize];
-    ["Offset of field: ggml_opt_params__bindgen_ty_2::max_step"]
-        [::std::mem::offset_of!(ggml_opt_params__bindgen_ty_2, max_step) - 28usize];
-    ["Offset of field: ggml_opt_params__bindgen_ty_2::linesearch"]
-        [::std::mem::offset_of!(ggml_opt_params__bindgen_ty_2, linesearch) - 32usize];
-};
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of ggml_opt_params"][::std::mem::size_of::<ggml_opt_params>() - 120usize];
-    ["Alignment of ggml_opt_params"][::std::mem::align_of::<ggml_opt_params>() - 8usize];
-    ["Offset of field: ggml_opt_params::type_"]
-        [::std::mem::offset_of!(ggml_opt_params, type_) - 0usize];
-    ["Offset of field: ggml_opt_params::graph_size"]
-        [::std::mem::offset_of!(ggml_opt_params, graph_size) - 8usize];
-    ["Offset of field: ggml_opt_params::n_threads"]
-        [::std::mem::offset_of!(ggml_opt_params, n_threads) - 16usize];
-    ["Offset of field: ggml_opt_params::past"]
-        [::std::mem::offset_of!(ggml_opt_params, past) - 20usize];
-    ["Offset of field: ggml_opt_params::delta"]
-        [::std::mem::offset_of!(ggml_opt_params, delta) - 24usize];
-    ["Offset of field: ggml_opt_params::max_no_improvement"]
-        [::std::mem::offset_of!(ggml_opt_params, max_no_improvement) - 28usize];
-    ["Offset of field: ggml_opt_params::print_forward_graph"]
-        [::std::mem::offset_of!(ggml_opt_params, print_forward_graph) - 32usize];
-    ["Offset of field: ggml_opt_params::print_backward_graph"]
-        [::std::mem::offset_of!(ggml_opt_params, print_backward_graph) - 33usize];
-    ["Offset of field: ggml_opt_params::n_gradient_accumulation"]
-        [::std::mem::offset_of!(ggml_opt_params, n_gradient_accumulation) - 36usize];
-    ["Offset of field: ggml_opt_params::adam"]
-        [::std::mem::offset_of!(ggml_opt_params, adam) - 40usize];
-    ["Offset of field: ggml_opt_params::lbfgs"]
-        [::std::mem::offset_of!(ggml_opt_params, lbfgs) - 84usize];
-};
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct ggml_opt_context {
@@ -3339,26 +3073,6 @@ pub struct ggml_opt_context__bindgen_ty_1 {
     pub n_no_improvement: ::std::os::raw::c_int,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of ggml_opt_context__bindgen_ty_1"]
-        [::std::mem::size_of::<ggml_opt_context__bindgen_ty_1>() - 48usize];
-    ["Alignment of ggml_opt_context__bindgen_ty_1"]
-        [::std::mem::align_of::<ggml_opt_context__bindgen_ty_1>() - 8usize];
-    ["Offset of field: ggml_opt_context__bindgen_ty_1::g"]
-        [::std::mem::offset_of!(ggml_opt_context__bindgen_ty_1, g) - 0usize];
-    ["Offset of field: ggml_opt_context__bindgen_ty_1::m"]
-        [::std::mem::offset_of!(ggml_opt_context__bindgen_ty_1, m) - 8usize];
-    ["Offset of field: ggml_opt_context__bindgen_ty_1::v"]
-        [::std::mem::offset_of!(ggml_opt_context__bindgen_ty_1, v) - 16usize];
-    ["Offset of field: ggml_opt_context__bindgen_ty_1::pf"]
-        [::std::mem::offset_of!(ggml_opt_context__bindgen_ty_1, pf) - 24usize];
-    ["Offset of field: ggml_opt_context__bindgen_ty_1::fx_best"]
-        [::std::mem::offset_of!(ggml_opt_context__bindgen_ty_1, fx_best) - 32usize];
-    ["Offset of field: ggml_opt_context__bindgen_ty_1::fx_prev"]
-        [::std::mem::offset_of!(ggml_opt_context__bindgen_ty_1, fx_prev) - 36usize];
-    ["Offset of field: ggml_opt_context__bindgen_ty_1::n_no_improvement"]
-        [::std::mem::offset_of!(ggml_opt_context__bindgen_ty_1, n_no_improvement) - 40usize];
-};
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct ggml_opt_context__bindgen_ty_2 {
@@ -3380,67 +3094,7 @@ pub struct ggml_opt_context__bindgen_ty_2 {
     pub n_no_improvement: ::std::os::raw::c_int,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of ggml_opt_context__bindgen_ty_2"]
-        [::std::mem::size_of::<ggml_opt_context__bindgen_ty_2>() - 104usize];
-    ["Alignment of ggml_opt_context__bindgen_ty_2"]
-        [::std::mem::align_of::<ggml_opt_context__bindgen_ty_2>() - 8usize];
-    ["Offset of field: ggml_opt_context__bindgen_ty_2::x"]
-        [::std::mem::offset_of!(ggml_opt_context__bindgen_ty_2, x) - 0usize];
-    ["Offset of field: ggml_opt_context__bindgen_ty_2::xp"]
-        [::std::mem::offset_of!(ggml_opt_context__bindgen_ty_2, xp) - 8usize];
-    ["Offset of field: ggml_opt_context__bindgen_ty_2::g"]
-        [::std::mem::offset_of!(ggml_opt_context__bindgen_ty_2, g) - 16usize];
-    ["Offset of field: ggml_opt_context__bindgen_ty_2::gp"]
-        [::std::mem::offset_of!(ggml_opt_context__bindgen_ty_2, gp) - 24usize];
-    ["Offset of field: ggml_opt_context__bindgen_ty_2::d"]
-        [::std::mem::offset_of!(ggml_opt_context__bindgen_ty_2, d) - 32usize];
-    ["Offset of field: ggml_opt_context__bindgen_ty_2::pf"]
-        [::std::mem::offset_of!(ggml_opt_context__bindgen_ty_2, pf) - 40usize];
-    ["Offset of field: ggml_opt_context__bindgen_ty_2::lmal"]
-        [::std::mem::offset_of!(ggml_opt_context__bindgen_ty_2, lmal) - 48usize];
-    ["Offset of field: ggml_opt_context__bindgen_ty_2::lmys"]
-        [::std::mem::offset_of!(ggml_opt_context__bindgen_ty_2, lmys) - 56usize];
-    ["Offset of field: ggml_opt_context__bindgen_ty_2::lms"]
-        [::std::mem::offset_of!(ggml_opt_context__bindgen_ty_2, lms) - 64usize];
-    ["Offset of field: ggml_opt_context__bindgen_ty_2::lmy"]
-        [::std::mem::offset_of!(ggml_opt_context__bindgen_ty_2, lmy) - 72usize];
-    ["Offset of field: ggml_opt_context__bindgen_ty_2::fx_best"]
-        [::std::mem::offset_of!(ggml_opt_context__bindgen_ty_2, fx_best) - 80usize];
-    ["Offset of field: ggml_opt_context__bindgen_ty_2::step"]
-        [::std::mem::offset_of!(ggml_opt_context__bindgen_ty_2, step) - 84usize];
-    ["Offset of field: ggml_opt_context__bindgen_ty_2::j"]
-        [::std::mem::offset_of!(ggml_opt_context__bindgen_ty_2, j) - 88usize];
-    ["Offset of field: ggml_opt_context__bindgen_ty_2::k"]
-        [::std::mem::offset_of!(ggml_opt_context__bindgen_ty_2, k) - 92usize];
-    ["Offset of field: ggml_opt_context__bindgen_ty_2::end"]
-        [::std::mem::offset_of!(ggml_opt_context__bindgen_ty_2, end) - 96usize];
-    ["Offset of field: ggml_opt_context__bindgen_ty_2::n_no_improvement"]
-        [::std::mem::offset_of!(ggml_opt_context__bindgen_ty_2, n_no_improvement) - 100usize];
-};
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of ggml_opt_context"][::std::mem::size_of::<ggml_opt_context>() - 312usize];
-    ["Alignment of ggml_opt_context"][::std::mem::align_of::<ggml_opt_context>() - 8usize];
-    ["Offset of field: ggml_opt_context::ctx"]
-        [::std::mem::offset_of!(ggml_opt_context, ctx) - 0usize];
-    ["Offset of field: ggml_opt_context::params"]
-        [::std::mem::offset_of!(ggml_opt_context, params) - 8usize];
-    ["Offset of field: ggml_opt_context::iter"]
-        [::std::mem::offset_of!(ggml_opt_context, iter) - 128usize];
-    ["Offset of field: ggml_opt_context::nx"]
-        [::std::mem::offset_of!(ggml_opt_context, nx) - 136usize];
-    ["Offset of field: ggml_opt_context::just_initialized"]
-        [::std::mem::offset_of!(ggml_opt_context, just_initialized) - 144usize];
-    ["Offset of field: ggml_opt_context::loss_before"]
-        [::std::mem::offset_of!(ggml_opt_context, loss_before) - 148usize];
-    ["Offset of field: ggml_opt_context::loss_after"]
-        [::std::mem::offset_of!(ggml_opt_context, loss_after) - 152usize];
-    ["Offset of field: ggml_opt_context::adam"]
-        [::std::mem::offset_of!(ggml_opt_context, adam) - 160usize];
-    ["Offset of field: ggml_opt_context::lbfgs"]
-        [::std::mem::offset_of!(ggml_opt_context, lbfgs) - 208usize];
-};
 extern "C" {
     pub fn ggml_opt_default_params(type_: ggml_opt_type) -> ggml_opt_params;
 }
@@ -3530,14 +3184,6 @@ pub struct gguf_init_params {
     pub ctx: *mut *mut ggml_context,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of gguf_init_params"][::std::mem::size_of::<gguf_init_params>() - 16usize];
-    ["Alignment of gguf_init_params"][::std::mem::align_of::<gguf_init_params>() - 8usize];
-    ["Offset of field: gguf_init_params::no_alloc"]
-        [::std::mem::offset_of!(gguf_init_params, no_alloc) - 0usize];
-    ["Offset of field: gguf_init_params::ctx"]
-        [::std::mem::offset_of!(gguf_init_params, ctx) - 8usize];
-};
 extern "C" {
     pub fn gguf_init_empty() -> *mut gguf_context;
 }
@@ -3921,40 +3567,6 @@ pub struct ggml_type_traits {
     pub gemm: ggml_gemm_t,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of ggml_type_traits"][::std::mem::size_of::<ggml_type_traits>() - 120usize];
-    ["Alignment of ggml_type_traits"][::std::mem::align_of::<ggml_type_traits>() - 8usize];
-    ["Offset of field: ggml_type_traits::type_name"]
-        [::std::mem::offset_of!(ggml_type_traits, type_name) - 0usize];
-    ["Offset of field: ggml_type_traits::blck_size"]
-        [::std::mem::offset_of!(ggml_type_traits, blck_size) - 8usize];
-    ["Offset of field: ggml_type_traits::blck_size_interleave"]
-        [::std::mem::offset_of!(ggml_type_traits, blck_size_interleave) - 16usize];
-    ["Offset of field: ggml_type_traits::type_size"]
-        [::std::mem::offset_of!(ggml_type_traits, type_size) - 24usize];
-    ["Offset of field: ggml_type_traits::is_quantized"]
-        [::std::mem::offset_of!(ggml_type_traits, is_quantized) - 32usize];
-    ["Offset of field: ggml_type_traits::to_float"]
-        [::std::mem::offset_of!(ggml_type_traits, to_float) - 40usize];
-    ["Offset of field: ggml_type_traits::from_float"]
-        [::std::mem::offset_of!(ggml_type_traits, from_float) - 48usize];
-    ["Offset of field: ggml_type_traits::from_float_ref"]
-        [::std::mem::offset_of!(ggml_type_traits, from_float_ref) - 56usize];
-    ["Offset of field: ggml_type_traits::from_float_to_mat"]
-        [::std::mem::offset_of!(ggml_type_traits, from_float_to_mat) - 64usize];
-    ["Offset of field: ggml_type_traits::vec_dot"]
-        [::std::mem::offset_of!(ggml_type_traits, vec_dot) - 72usize];
-    ["Offset of field: ggml_type_traits::vec_dot_type"]
-        [::std::mem::offset_of!(ggml_type_traits, vec_dot_type) - 80usize];
-    ["Offset of field: ggml_type_traits::nrows"]
-        [::std::mem::offset_of!(ggml_type_traits, nrows) - 88usize];
-    ["Offset of field: ggml_type_traits::ncols"]
-        [::std::mem::offset_of!(ggml_type_traits, ncols) - 96usize];
-    ["Offset of field: ggml_type_traits::gemv"]
-        [::std::mem::offset_of!(ggml_type_traits, gemv) - 104usize];
-    ["Offset of field: ggml_type_traits::gemm"]
-        [::std::mem::offset_of!(ggml_type_traits, gemm) - 112usize];
-};
 extern "C" {
     pub fn ggml_get_type_traits(type_: ggml_type) -> *const ggml_type_traits;
 }
@@ -4001,14 +3613,6 @@ pub struct whisper_ahead {
     pub n_head: ::std::os::raw::c_int,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of whisper_ahead"][::std::mem::size_of::<whisper_ahead>() - 8usize];
-    ["Alignment of whisper_ahead"][::std::mem::align_of::<whisper_ahead>() - 4usize];
-    ["Offset of field: whisper_ahead::n_text_layer"]
-        [::std::mem::offset_of!(whisper_ahead, n_text_layer) - 0usize];
-    ["Offset of field: whisper_ahead::n_head"]
-        [::std::mem::offset_of!(whisper_ahead, n_head) - 4usize];
-};
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct whisper_aheads {
@@ -4016,14 +3620,6 @@ pub struct whisper_aheads {
     pub heads: *const whisper_ahead,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of whisper_aheads"][::std::mem::size_of::<whisper_aheads>() - 16usize];
-    ["Alignment of whisper_aheads"][::std::mem::align_of::<whisper_aheads>() - 8usize];
-    ["Offset of field: whisper_aheads::n_heads"]
-        [::std::mem::offset_of!(whisper_aheads, n_heads) - 0usize];
-    ["Offset of field: whisper_aheads::heads"]
-        [::std::mem::offset_of!(whisper_aheads, heads) - 8usize];
-};
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct whisper_context_params {
@@ -4037,27 +3633,6 @@ pub struct whisper_context_params {
     pub dtw_mem_size: usize,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of whisper_context_params"][::std::mem::size_of::<whisper_context_params>() - 48usize];
-    ["Alignment of whisper_context_params"]
-        [::std::mem::align_of::<whisper_context_params>() - 8usize];
-    ["Offset of field: whisper_context_params::use_gpu"]
-        [::std::mem::offset_of!(whisper_context_params, use_gpu) - 0usize];
-    ["Offset of field: whisper_context_params::flash_attn"]
-        [::std::mem::offset_of!(whisper_context_params, flash_attn) - 1usize];
-    ["Offset of field: whisper_context_params::gpu_device"]
-        [::std::mem::offset_of!(whisper_context_params, gpu_device) - 4usize];
-    ["Offset of field: whisper_context_params::dtw_token_timestamps"]
-        [::std::mem::offset_of!(whisper_context_params, dtw_token_timestamps) - 8usize];
-    ["Offset of field: whisper_context_params::dtw_aheads_preset"]
-        [::std::mem::offset_of!(whisper_context_params, dtw_aheads_preset) - 12usize];
-    ["Offset of field: whisper_context_params::dtw_n_top"]
-        [::std::mem::offset_of!(whisper_context_params, dtw_n_top) - 16usize];
-    ["Offset of field: whisper_context_params::dtw_aheads"]
-        [::std::mem::offset_of!(whisper_context_params, dtw_aheads) - 24usize];
-    ["Offset of field: whisper_context_params::dtw_mem_size"]
-        [::std::mem::offset_of!(whisper_context_params, dtw_mem_size) - 40usize];
-};
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct whisper_token_data {
@@ -4073,30 +3648,6 @@ pub struct whisper_token_data {
     pub vlen: f32,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of whisper_token_data"][::std::mem::size_of::<whisper_token_data>() - 56usize];
-    ["Alignment of whisper_token_data"][::std::mem::align_of::<whisper_token_data>() - 8usize];
-    ["Offset of field: whisper_token_data::id"]
-        [::std::mem::offset_of!(whisper_token_data, id) - 0usize];
-    ["Offset of field: whisper_token_data::tid"]
-        [::std::mem::offset_of!(whisper_token_data, tid) - 4usize];
-    ["Offset of field: whisper_token_data::p"]
-        [::std::mem::offset_of!(whisper_token_data, p) - 8usize];
-    ["Offset of field: whisper_token_data::plog"]
-        [::std::mem::offset_of!(whisper_token_data, plog) - 12usize];
-    ["Offset of field: whisper_token_data::pt"]
-        [::std::mem::offset_of!(whisper_token_data, pt) - 16usize];
-    ["Offset of field: whisper_token_data::ptsum"]
-        [::std::mem::offset_of!(whisper_token_data, ptsum) - 20usize];
-    ["Offset of field: whisper_token_data::t0"]
-        [::std::mem::offset_of!(whisper_token_data, t0) - 24usize];
-    ["Offset of field: whisper_token_data::t1"]
-        [::std::mem::offset_of!(whisper_token_data, t1) - 32usize];
-    ["Offset of field: whisper_token_data::t_dtw"]
-        [::std::mem::offset_of!(whisper_token_data, t_dtw) - 40usize];
-    ["Offset of field: whisper_token_data::vlen"]
-        [::std::mem::offset_of!(whisper_token_data, vlen) - 48usize];
-};
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct whisper_model_loader {
@@ -4112,18 +3663,6 @@ pub struct whisper_model_loader {
     pub close: ::std::option::Option<unsafe extern "C" fn(ctx: *mut ::std::os::raw::c_void)>,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of whisper_model_loader"][::std::mem::size_of::<whisper_model_loader>() - 32usize];
-    ["Alignment of whisper_model_loader"][::std::mem::align_of::<whisper_model_loader>() - 8usize];
-    ["Offset of field: whisper_model_loader::context"]
-        [::std::mem::offset_of!(whisper_model_loader, context) - 0usize];
-    ["Offset of field: whisper_model_loader::read"]
-        [::std::mem::offset_of!(whisper_model_loader, read) - 8usize];
-    ["Offset of field: whisper_model_loader::eof"]
-        [::std::mem::offset_of!(whisper_model_loader, eof) - 16usize];
-    ["Offset of field: whisper_model_loader::close"]
-        [::std::mem::offset_of!(whisper_model_loader, close) - 24usize];
-};
 pub const whisper_gretype_WHISPER_GRETYPE_END: whisper_gretype = 0;
 pub const whisper_gretype_WHISPER_GRETYPE_ALT: whisper_gretype = 1;
 pub const whisper_gretype_WHISPER_GRETYPE_RULE_REF: whisper_gretype = 2;
@@ -4131,7 +3670,10 @@ pub const whisper_gretype_WHISPER_GRETYPE_CHAR: whisper_gretype = 3;
 pub const whisper_gretype_WHISPER_GRETYPE_CHAR_NOT: whisper_gretype = 4;
 pub const whisper_gretype_WHISPER_GRETYPE_CHAR_RNG_UPPER: whisper_gretype = 5;
 pub const whisper_gretype_WHISPER_GRETYPE_CHAR_ALT: whisper_gretype = 6;
-pub type whisper_gretype = ::std::os::raw::c_uint;
+// ponytail: whisper-rs 0.13.2 declares WhisperGrammarElementType with
+// #[cfg_attr(all(windows, not(target_env = "gnu")), repr(i32))] on MSVC.
+// Match that here so the enum's discriminant type agrees with the constants.
+pub type whisper_gretype = ::std::os::raw::c_int;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct whisper_grammar_element {
@@ -4139,15 +3681,6 @@ pub struct whisper_grammar_element {
     pub value: u32,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of whisper_grammar_element"][::std::mem::size_of::<whisper_grammar_element>() - 8usize];
-    ["Alignment of whisper_grammar_element"]
-        [::std::mem::align_of::<whisper_grammar_element>() - 4usize];
-    ["Offset of field: whisper_grammar_element::type_"]
-        [::std::mem::offset_of!(whisper_grammar_element, type_) - 0usize];
-    ["Offset of field: whisper_grammar_element::value"]
-        [::std::mem::offset_of!(whisper_grammar_element, value) - 4usize];
-};
 extern "C" {
     pub fn whisper_init_from_file_with_params(
         path_model: *const ::std::os::raw::c_char,
@@ -4567,14 +4100,6 @@ pub struct whisper_full_params__bindgen_ty_1 {
     pub best_of: ::std::os::raw::c_int,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of whisper_full_params__bindgen_ty_1"]
-        [::std::mem::size_of::<whisper_full_params__bindgen_ty_1>() - 4usize];
-    ["Alignment of whisper_full_params__bindgen_ty_1"]
-        [::std::mem::align_of::<whisper_full_params__bindgen_ty_1>() - 4usize];
-    ["Offset of field: whisper_full_params__bindgen_ty_1::best_of"]
-        [::std::mem::offset_of!(whisper_full_params__bindgen_ty_1, best_of) - 0usize];
-};
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct whisper_full_params__bindgen_ty_2 {
@@ -4582,127 +4107,7 @@ pub struct whisper_full_params__bindgen_ty_2 {
     pub patience: f32,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of whisper_full_params__bindgen_ty_2"]
-        [::std::mem::size_of::<whisper_full_params__bindgen_ty_2>() - 8usize];
-    ["Alignment of whisper_full_params__bindgen_ty_2"]
-        [::std::mem::align_of::<whisper_full_params__bindgen_ty_2>() - 4usize];
-    ["Offset of field: whisper_full_params__bindgen_ty_2::beam_size"]
-        [::std::mem::offset_of!(whisper_full_params__bindgen_ty_2, beam_size) - 0usize];
-    ["Offset of field: whisper_full_params__bindgen_ty_2::patience"]
-        [::std::mem::offset_of!(whisper_full_params__bindgen_ty_2, patience) - 4usize];
-};
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of whisper_full_params"][::std::mem::size_of::<whisper_full_params>() - 264usize];
-    ["Alignment of whisper_full_params"][::std::mem::align_of::<whisper_full_params>() - 8usize];
-    ["Offset of field: whisper_full_params::strategy"]
-        [::std::mem::offset_of!(whisper_full_params, strategy) - 0usize];
-    ["Offset of field: whisper_full_params::n_threads"]
-        [::std::mem::offset_of!(whisper_full_params, n_threads) - 4usize];
-    ["Offset of field: whisper_full_params::n_max_text_ctx"]
-        [::std::mem::offset_of!(whisper_full_params, n_max_text_ctx) - 8usize];
-    ["Offset of field: whisper_full_params::offset_ms"]
-        [::std::mem::offset_of!(whisper_full_params, offset_ms) - 12usize];
-    ["Offset of field: whisper_full_params::duration_ms"]
-        [::std::mem::offset_of!(whisper_full_params, duration_ms) - 16usize];
-    ["Offset of field: whisper_full_params::translate"]
-        [::std::mem::offset_of!(whisper_full_params, translate) - 20usize];
-    ["Offset of field: whisper_full_params::no_context"]
-        [::std::mem::offset_of!(whisper_full_params, no_context) - 21usize];
-    ["Offset of field: whisper_full_params::no_timestamps"]
-        [::std::mem::offset_of!(whisper_full_params, no_timestamps) - 22usize];
-    ["Offset of field: whisper_full_params::single_segment"]
-        [::std::mem::offset_of!(whisper_full_params, single_segment) - 23usize];
-    ["Offset of field: whisper_full_params::print_special"]
-        [::std::mem::offset_of!(whisper_full_params, print_special) - 24usize];
-    ["Offset of field: whisper_full_params::print_progress"]
-        [::std::mem::offset_of!(whisper_full_params, print_progress) - 25usize];
-    ["Offset of field: whisper_full_params::print_realtime"]
-        [::std::mem::offset_of!(whisper_full_params, print_realtime) - 26usize];
-    ["Offset of field: whisper_full_params::print_timestamps"]
-        [::std::mem::offset_of!(whisper_full_params, print_timestamps) - 27usize];
-    ["Offset of field: whisper_full_params::token_timestamps"]
-        [::std::mem::offset_of!(whisper_full_params, token_timestamps) - 28usize];
-    ["Offset of field: whisper_full_params::thold_pt"]
-        [::std::mem::offset_of!(whisper_full_params, thold_pt) - 32usize];
-    ["Offset of field: whisper_full_params::thold_ptsum"]
-        [::std::mem::offset_of!(whisper_full_params, thold_ptsum) - 36usize];
-    ["Offset of field: whisper_full_params::max_len"]
-        [::std::mem::offset_of!(whisper_full_params, max_len) - 40usize];
-    ["Offset of field: whisper_full_params::split_on_word"]
-        [::std::mem::offset_of!(whisper_full_params, split_on_word) - 44usize];
-    ["Offset of field: whisper_full_params::max_tokens"]
-        [::std::mem::offset_of!(whisper_full_params, max_tokens) - 48usize];
-    ["Offset of field: whisper_full_params::debug_mode"]
-        [::std::mem::offset_of!(whisper_full_params, debug_mode) - 52usize];
-    ["Offset of field: whisper_full_params::audio_ctx"]
-        [::std::mem::offset_of!(whisper_full_params, audio_ctx) - 56usize];
-    ["Offset of field: whisper_full_params::tdrz_enable"]
-        [::std::mem::offset_of!(whisper_full_params, tdrz_enable) - 60usize];
-    ["Offset of field: whisper_full_params::suppress_regex"]
-        [::std::mem::offset_of!(whisper_full_params, suppress_regex) - 64usize];
-    ["Offset of field: whisper_full_params::initial_prompt"]
-        [::std::mem::offset_of!(whisper_full_params, initial_prompt) - 72usize];
-    ["Offset of field: whisper_full_params::prompt_tokens"]
-        [::std::mem::offset_of!(whisper_full_params, prompt_tokens) - 80usize];
-    ["Offset of field: whisper_full_params::prompt_n_tokens"]
-        [::std::mem::offset_of!(whisper_full_params, prompt_n_tokens) - 88usize];
-    ["Offset of field: whisper_full_params::language"]
-        [::std::mem::offset_of!(whisper_full_params, language) - 96usize];
-    ["Offset of field: whisper_full_params::detect_language"]
-        [::std::mem::offset_of!(whisper_full_params, detect_language) - 104usize];
-    ["Offset of field: whisper_full_params::suppress_blank"]
-        [::std::mem::offset_of!(whisper_full_params, suppress_blank) - 105usize];
-    ["Offset of field: whisper_full_params::suppress_non_speech_tokens"]
-        [::std::mem::offset_of!(whisper_full_params, suppress_non_speech_tokens) - 106usize];
-    ["Offset of field: whisper_full_params::temperature"]
-        [::std::mem::offset_of!(whisper_full_params, temperature) - 108usize];
-    ["Offset of field: whisper_full_params::max_initial_ts"]
-        [::std::mem::offset_of!(whisper_full_params, max_initial_ts) - 112usize];
-    ["Offset of field: whisper_full_params::length_penalty"]
-        [::std::mem::offset_of!(whisper_full_params, length_penalty) - 116usize];
-    ["Offset of field: whisper_full_params::temperature_inc"]
-        [::std::mem::offset_of!(whisper_full_params, temperature_inc) - 120usize];
-    ["Offset of field: whisper_full_params::entropy_thold"]
-        [::std::mem::offset_of!(whisper_full_params, entropy_thold) - 124usize];
-    ["Offset of field: whisper_full_params::logprob_thold"]
-        [::std::mem::offset_of!(whisper_full_params, logprob_thold) - 128usize];
-    ["Offset of field: whisper_full_params::no_speech_thold"]
-        [::std::mem::offset_of!(whisper_full_params, no_speech_thold) - 132usize];
-    ["Offset of field: whisper_full_params::greedy"]
-        [::std::mem::offset_of!(whisper_full_params, greedy) - 136usize];
-    ["Offset of field: whisper_full_params::beam_search"]
-        [::std::mem::offset_of!(whisper_full_params, beam_search) - 140usize];
-    ["Offset of field: whisper_full_params::new_segment_callback"]
-        [::std::mem::offset_of!(whisper_full_params, new_segment_callback) - 152usize];
-    ["Offset of field: whisper_full_params::new_segment_callback_user_data"]
-        [::std::mem::offset_of!(whisper_full_params, new_segment_callback_user_data) - 160usize];
-    ["Offset of field: whisper_full_params::progress_callback"]
-        [::std::mem::offset_of!(whisper_full_params, progress_callback) - 168usize];
-    ["Offset of field: whisper_full_params::progress_callback_user_data"]
-        [::std::mem::offset_of!(whisper_full_params, progress_callback_user_data) - 176usize];
-    ["Offset of field: whisper_full_params::encoder_begin_callback"]
-        [::std::mem::offset_of!(whisper_full_params, encoder_begin_callback) - 184usize];
-    ["Offset of field: whisper_full_params::encoder_begin_callback_user_data"]
-        [::std::mem::offset_of!(whisper_full_params, encoder_begin_callback_user_data) - 192usize];
-    ["Offset of field: whisper_full_params::abort_callback"]
-        [::std::mem::offset_of!(whisper_full_params, abort_callback) - 200usize];
-    ["Offset of field: whisper_full_params::abort_callback_user_data"]
-        [::std::mem::offset_of!(whisper_full_params, abort_callback_user_data) - 208usize];
-    ["Offset of field: whisper_full_params::logits_filter_callback"]
-        [::std::mem::offset_of!(whisper_full_params, logits_filter_callback) - 216usize];
-    ["Offset of field: whisper_full_params::logits_filter_callback_user_data"]
-        [::std::mem::offset_of!(whisper_full_params, logits_filter_callback_user_data) - 224usize];
-    ["Offset of field: whisper_full_params::grammar_rules"]
-        [::std::mem::offset_of!(whisper_full_params, grammar_rules) - 232usize];
-    ["Offset of field: whisper_full_params::n_grammar_rules"]
-        [::std::mem::offset_of!(whisper_full_params, n_grammar_rules) - 240usize];
-    ["Offset of field: whisper_full_params::i_start_rule"]
-        [::std::mem::offset_of!(whisper_full_params, i_start_rule) - 248usize];
-    ["Offset of field: whisper_full_params::grammar_penalty"]
-        [::std::mem::offset_of!(whisper_full_params, grammar_penalty) - 256usize];
-};
 extern "C" {
     pub fn whisper_context_default_params_by_ref() -> *mut whisper_context_params;
 }
@@ -4901,18 +4306,6 @@ pub struct __va_list_tag {
     pub reg_save_area: *mut ::std::os::raw::c_void,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of __va_list_tag"][::std::mem::size_of::<__va_list_tag>() - 24usize];
-    ["Alignment of __va_list_tag"][::std::mem::align_of::<__va_list_tag>() - 8usize];
-    ["Offset of field: __va_list_tag::gp_offset"]
-        [::std::mem::offset_of!(__va_list_tag, gp_offset) - 0usize];
-    ["Offset of field: __va_list_tag::fp_offset"]
-        [::std::mem::offset_of!(__va_list_tag, fp_offset) - 4usize];
-    ["Offset of field: __va_list_tag::overflow_arg_area"]
-        [::std::mem::offset_of!(__va_list_tag, overflow_arg_area) - 8usize];
-    ["Offset of field: __va_list_tag::reg_save_area"]
-        [::std::mem::offset_of!(__va_list_tag, reg_save_area) - 16usize];
-};
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct ggml_backend_buffer {

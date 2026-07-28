@@ -233,6 +233,16 @@ fn main() {
         config.cxxflag("-DWHISPER_DEBUG");
     }
 
+    // ponytail: whisper.cpp ships UTF-8 string literals (CJK punctuation in
+    // non_speech_tokens). cmake crate on Windows MSVC defaults to /D _MBCS,
+    // which makes CL.exe reject those as invalid literal suffixes (C3688).
+    // Use cflag/cxxflag so the cmake crate merges /utf-8 into the existing
+    // CMAKE_C/CXX_FLAGS that include /MD, /EHsc, etc.
+    if target.contains("windows") && target.contains("msvc") {
+        config.cflag("-utf-8");
+        config.cxxflag("-utf-8");
+    }
+
     // Allow passing any WHISPER or CMAKE compile flags
     for (key, value) in env::vars() {
         let is_whisper_flag =
