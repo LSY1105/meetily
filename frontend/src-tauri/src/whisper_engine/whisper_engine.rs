@@ -589,10 +589,10 @@ impl WhisperEngine {
         &self,
         audio_data: Vec<f32>,
         language: Option<String>,
-        /// Optional initial_prompt used to bias the decoder toward known
-        /// vocabulary (project names, technical terms, etc.). Forwarded to
-        /// whisper.cpp `params.set_initial_prompt`. Pass None for the legacy
-        /// behavior (no prompt bias).
+        // Optional initial_prompt used to bias the decoder toward known
+        // vocabulary (project names, technical terms, etc.). Forwarded to
+        // whisper.cpp `params.set_initial_prompt`. Pass None for the legacy
+        // behavior (no prompt bias).
         initial_prompt: Option<String>,
     ) -> Result<(String, f32, bool)> {
         let ctx_lock = self.current_context.read().await;
