@@ -13,7 +13,8 @@
 
 use crate::database::repositories::setting::SettingsRepository;
 use crate::llm_diagnostics::{DiagnosticsSnapshot, LastTestResult, LLMDiagnosticsState};
-use crate::llm_postprocess::{generate_summary, http_client, load_provider_inputs};
+use crate::summary::llm_client::generate_summary;
+use crate::llm_postprocess::{http_client, load_provider_inputs};
 use sqlx::SqlitePool;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
@@ -154,7 +155,7 @@ pub async fn run_health_check(app: &AppHandle, scheduled: bool) -> LastTestResul
         "ping",
         ollama_endpoint.as_deref(),
         custom_openai_endpoint.as_deref(),
-        Some(1).or(max_tokens),
+        max_tokens.or(Some(1)),
         temperature,
         top_p,
         None,
