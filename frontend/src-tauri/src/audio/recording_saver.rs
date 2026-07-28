@@ -469,7 +469,7 @@ impl RecordingSaver {
         if let Some(meeting_id) = self.metadata.as_ref().and_then(|m| m.meeting_id.clone()) {
             let pool_opt = app.try_state::<crate::state::AppState>();
             if let Some(app_state) = pool_opt {
-                let pool = app_state.db_manager.pool();
+                let pool = app_state.db_manager.pool().clone();
                 let wav_path = self.meeting_folder.as_ref().map(|f| f.join("audio.wav"));
                 let windows = self.diarization_buffer.snapshot();
                 let app_clone = app.clone();
