@@ -13,7 +13,7 @@
 
 use crate::database::repositories::setting::SettingsRepository;
 use crate::llm_diagnostics::{DiagnosticsSnapshot, LastTestResult, LLMDiagnosticsState};
-use crate::summary::llm_client::generate_summary;
+use crate::summary::llm_client::{generate_summary, LLMError};
 use crate::llm_postprocess::{http_client, load_provider_inputs};
 use sqlx::SqlitePool;
 use std::time::Duration;
@@ -165,7 +165,19 @@ pub async fn run_health_check(app: &AppHandle, scheduled: bool) -> LastTestResul
     let latency_ms = start.elapsed().as_millis();
     let last = match result {
         Ok(_) => LastTestResult::ok(latency_ms).with_origin(origin),
-        Err(e) => LastTestResult::failed(latency_ms, e.code, &e.message).with_origin(origin)
+        Err(e) => LastTestResult::failed(
+            latency_ms,
+            match &e {
+                LLMError::Cancelled => "cancelled",
+                LLMError::Auth => "auth",
+                LLMError::ClientError { .. } => "client_error",
+                LLMError::ServerError { .. } => "server_error",
+                LLMError::Network(_) => "network",
+                LLMError::JsonParse(_) => "json_parse",
+                LLMError::Other(_) => "other",
+            },
+            &e.to_string(),
+        ).with_origin(origin)
     };
     diag.set_last_test(last.clone());
     let _ = app.emit(
