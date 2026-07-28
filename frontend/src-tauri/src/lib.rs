@@ -67,7 +67,7 @@ use audio::{list_audio_devices, AudioDevice, trigger_audio_permission};
 use log::{error as log_error, info as log_info};
 use notifications::commands::NotificationManagerState;
 use std::sync::Arc;
-use tauri::{AppHandle, Manager, Runtime};
+use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tokio::sync::RwLock;
 
 static RECORDING_FLAG: AtomicBool = AtomicBool::new(false);
@@ -532,7 +532,9 @@ pub fn run() {
                 hotword_stats::init(state.db_manager.pool().clone());
                 llm_postprocess::init_app(_app.handle().clone());
                 _app.manage(llm_diagnostics::LLMDiagnosticsState::default());
-                let interval = llm_health::load_current_interval(state.db_manager.pool()).await;
+                let interval = tauri::async_runtime::block_on(async {
+                    llm_health::load_current_interval(state.db_manager.pool()).await
+                });
                 if interval > 0 {
                     llm_health::start(_app.handle().clone(), interval);
                 }
