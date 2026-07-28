@@ -236,7 +236,11 @@ Verify `LLMError` is imported:
 grep -n "use.*LLMError" frontend/src-tauri/src/summary/failover.rs | head -3
 ```
 
-If not imported, add to the `use` declarations at the top of the file.
+If not imported, add to the existing `use` declarations at the top of the file:
+
+```rust
+use crate::summary::llm_client::LLMError;
+```
 
 - [ ] **Step 3: Apply edits**
 
