@@ -149,6 +149,8 @@ pub fn start_transcription_task<R: Runtime>(
 
                             let chunk_timestamp = chunk.timestamp;
                             let chunk_duration = chunk.data.len() as f64 / chunk.sample_rate as f64;
+                            let chunk_sample_rate = chunk.sample_rate;
+                            let chunk_data = chunk.data.clone();
 
                             // Transcribe with provider-agnostic approach
                             match transcribe_chunk_with_provider(
@@ -219,8 +221,8 @@ pub fn start_transcription_task<R: Runtime>(
                                             let buf = crate::audio::recording_commands::current_diarization_buffer();
                                             if crate::diarization::embedding::push_window(
                                                 buf.as_ref(),
-                                                &chunk.data,
-                                                chunk.sample_rate,
+                                                &chunk_data,
+                                                chunk_sample_rate,
                                                 chunk_timestamp,
                                                 chunk_timestamp + chunk_duration,
                                             ) {
