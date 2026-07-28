@@ -46,7 +46,7 @@ pub fn spectral_cluster(emb: &[Vec<f32>], k: usize) -> Vec<usize> {
         return (0..n).map(|i| i.min(k - 1)).collect();
     }
     let w = cosine_affinity(emb);
-    let deg: DVector<f32> = w.row_iter().map(|r| r.sum()).collect();
+    let deg: DVector<f32> = DVector::from_iterator(w.nrows(), w.row_iter().map(|r| r.sum()));
     let mut l = DMatrix::<f32>::zeros(n, n);
     for i in 0..n {
         for j in 0..n {
