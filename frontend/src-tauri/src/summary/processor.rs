@@ -535,7 +535,7 @@ pub async fn generate_meeting_summary(
         if let Some(token) = cancellation_token {
             if token.is_cancelled() {
                 info!("Summary generation cancelled before final summary");
-                return Err("Summary generation was cancelled".to_string());
+                return Err(LLMError::Cancelled);
             }
         }
 
@@ -582,7 +582,7 @@ pub async fn generate_meeting_summary(
             .await
             {
                 Ok(translated) => translated,
-                Err(e) => return Err(format!("Translation to {} failed: {}", name, e)),
+                Err(e) => return Err(LLMError::Other(format!("Translation to {} failed: {}", name, e))),
             }
         }
         FinalLanguageAction::NormalizeEnglish => {
