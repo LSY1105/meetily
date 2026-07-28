@@ -59,12 +59,6 @@ call :log "using pnpm: %PNPM%"
 REM Force x86_64 target (matches project / CI; host rustup default is aarch64)
 set "CARGO_BUILD_TARGET=x86_64-pc-windows-msvc"
 
-REM Force MSVC to read source as UTF-8. whisper.cpp contains CJK
-REM punctuation that GBK-codepage cl.exe misreads as invalid literal
-REM suffixes (C3688). /utf-8 is harmless if the file is ASCII-only.
-set "CMAKE_C_FLAGS=/utf-8"
-set "CMAKE_CXX_FLAGS=/utf-8"
-
 where cargo >nul 2>&1
 if errorlevel 1 (
   call :err "cargo is not installed"
