@@ -309,11 +309,29 @@ If the error persists after applying the fix, report BLOCKED with the full error
 
 - [ ] **Step 5: Commit**
 
+Use a commit message that names the actual fix you applied. Two examples based on the diagnosis:
+
+If you found a shadowing `let initial_prompt` binding:
+```
+fix(retranscription): rename shadowing initial_prompt binding to loaded_prompt
+
+The inner let at line N shadowed the function parameter at line 97.
+Rename to loaded_prompt to disambiguate.
+```
+
+If the parameter was missing from the signature:
+```
+fix(retranscription): restore initial_prompt parameter to start_retranscription
+
+The parameter was dropped during a refactor but the body at line
+385 still references it. Add it back to the function signature.
+```
+
+Pick whichever matches your diagnosis. Then commit:
+
 ```bash
 git add frontend/src-tauri/src/audio/retranscription.rs
-git -c user.email="claude@anthropic.com" -c user.name="Claude" commit -m "fix(retranscription): resolve initial_prompt scope issue at line 385
-
-<describe what you found and fixed>
+git -c user.email="claude@anthropic.com" -c user.name="Claude" commit -m "<your-message-above>
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
