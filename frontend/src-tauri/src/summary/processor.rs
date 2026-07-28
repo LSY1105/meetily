@@ -200,7 +200,7 @@ You are an expert meeting summarizer. Generate a final meeting report by filling
 
 <template>
 {clean_template_markdown}
-"
+"#
     );
     if let Some(glossary) = build_glossary_block() {
         prompt.push_str(&glossary);
