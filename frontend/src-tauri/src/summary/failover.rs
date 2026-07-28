@@ -80,14 +80,14 @@ pub async fn generate_with_failover(
     cancellation_token: Option<&CancellationToken>,
 ) -> Result<String, LLMError> {
     if chain.is_empty() {
-        return Err("Provider chain is empty".to_string());
+        return Err(LLMError::Other("Provider chain is empty".to_string()));
     }
 
     let mut last_err: Option<LLMError> = None;
     for (i, entry) in chain.iter().enumerate() {
         if let Some(token) = cancellation_token {
             if token.is_cancelled() {
-                return Err("Summary generation was cancelled".to_string());
+                return Err(LLMError::Cancelled);
             }
         }
 
