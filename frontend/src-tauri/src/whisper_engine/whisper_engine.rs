@@ -3,7 +3,7 @@
 use std::path::{PathBuf};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 use whisper_rs::{WhisperContext, WhisperContextParameters, FullParams, SamplingStrategy};
 use serde::{Serialize, Deserialize};
 use anyhow::{Result, anyhow};
@@ -11,6 +11,7 @@ use reqwest::Client;
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
 use crate::config::WHISPER_MODEL_CATALOG;
+use crate::audio::post_processor::PostProcessor;
 use super::acceleration::{whisper_context_acceleration_for, WhisperCompiledBackend};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,6 +48,10 @@ pub struct WhisperEngine {
     cancel_download_flag: Arc<RwLock<Option<String>>>, // Model name being cancelled
     // Active downloads tracking to prevent concurrent downloads
     active_downloads: Arc<RwLock<HashSet<String>>>, // Set of models currently being downloaded
+    // Serialize load_model/unload_model across the whole process. Two
+    // concurrent load_model calls race to swap the (model, ctx) pair and
+    // can drop native whisper-rs handles out from under each other.
+    load_lock: Arc<Mutex<()>>,
 }
 
 impl WhisperEngine {
@@ -163,6 +168,9 @@ impl WhisperEngine {
             cancel_download_flag: Arc::new(RwLock::new(None)),
             // Initialize active downloads tracking
             active_downloads: Arc::new(RwLock::new(HashSet::new())),
+            // Process-wide serializer for (un)load to keep native whisper-rs
+            // handles coherent. See load_model().
+            load_lock: Arc::new(Mutex::new(())),
         };
         
         Ok(engine)
@@ -259,6 +267,11 @@ impl WhisperEngine {
     }
     
     pub async fn load_model(&self, model_name: &str) -> Result<()> {
+        // Serialize (un)load across the process: the (model_name, context) pair
+        // is not a single atomic swap, so two concurrent callers would
+        // interleave their unload/load and drop each other's native handles.
+        let _guard = self.load_lock.lock().await;
+
         let models = self.available_models.read().await;
         let model_info = models.get(model_name)
             .ok_or_else(|| anyhow!("Model {} not found", model_name))?;
@@ -272,9 +285,18 @@ impl WhisperEngine {
                         return Ok(());
                     }
 
-                    // FIX 5: Unload current model before loading new one
+                    // FIX 5: Unload current model before loading new one.
+                    // Inline the unload body instead of calling self.unload_model():
+                    // load_lock is the same non-reentrant Mutex, so awaiting it
+                    // recursively would deadlock.
                     log::info!("Unloading current model '{}' before loading '{}'", current_model, model_name);
-                    self.unload_model().await;
+                    {
+                        let mut ctx_guard = self.current_context.write().await;
+                        if ctx_guard.take().is_some() {
+                            log::info!("📉Whisper model unloaded");
+                        }
+                        self.current_model.write().await.take();
+                    }
                 }
 
                 log::info!("Loading model: {}", model_name);
@@ -343,6 +365,10 @@ impl WhisperEngine {
     }
 
     pub async fn unload_model(&self) -> bool  {
+        // Serialize alongside load_model so a concurrent swap can't drop the
+        // native handle out from under an in-flight transcription.
+        let _guard = self.load_lock.lock().await;
+
         let mut ctx_guard = self.current_context.write().await;
         let unloaded = ctx_guard.take().is_some();
         if unloaded {
@@ -685,9 +711,9 @@ impl WhisperEngine {
         // Wave 18 PR-55: pre-pass protected terms so clean_repetitive_text can
         // never touch names, casing, or digits inside them; post-pass restores
         // the originals verbatim. No-op when no protected terms are configured.
-        let (guarded, mapping) = crate::audio::post_processor::protect_terms(&final_result);
+        let (guarded, mapping) = crate::audio::post_processor::PostProcessor::protect_terms(&final_result);
         let cleaned_guarded = Self::clean_repetitive_text(&guarded);
-        let cleaned_result = crate::audio::post_processor::restore_protected_terms(&cleaned_guarded, &mapping);
+        let cleaned_result = crate::audio::post_processor::PostProcessor::restore_protected_terms(&cleaned_guarded, &mapping);
 
         let avg_confidence = if segment_count > 0 {
             total_confidence / segment_count as f32
