@@ -1,9 +1,9 @@
-use super::super::status;
-use super::commit_speaker_labels;
+use super::status;
+use super::offline::commit_speaker_labels;
 
 #[tokio::test]
 async fn disabled_short_circuit_returns_zero() {
-    super::super::update_status(super::super::DiarizationStatus {
+    super::update_status(super::DiarizationStatus {
         enabled: false,
         min_speakers: 2,
         max_speakers: 4,
@@ -22,5 +22,5 @@ async fn disabled_short_circuit_returns_zero() {
     assert!(res.is_ok());
     assert_eq!(res.unwrap_or(99), 0);
     // Restore default for other tests.
-    super::super::update_status(status());
+    super::update_status(status());
 }
