@@ -63,7 +63,7 @@ fn english_markdown_after_normalization_result(
 ) -> Result<String, LLMError> {
     match normalization_result {
         Ok(normalized) => Ok(normalized),
-        Err(e) if e.contains("cancelled") => Err(e),
+        Err(e) if matches!(e, LLMError::Cancelled) => Err(e),
         Err(e) => {
             error!(
                 "English normalization pass failed; returning pass-1 markdown without hard fail: {}",
