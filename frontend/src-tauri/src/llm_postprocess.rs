@@ -13,7 +13,7 @@ use crate::database::repositories::setting::SettingsRepository;
 use crate::summary::llm_client::{generate_summary, LLMError, LLMProvider};
 use crate::summary::CustomOpenAIConfig;
 use crate::llm_diagnostics::{LastTestResult, LLMDiagnosticsState};
-use once_cell::sync::OnceLock;
+use std::sync::OnceLock;
 use serde::Serialize;
 use sqlx::SqlitePool;
 use std::str::FromStr;
@@ -94,7 +94,7 @@ struct PostprocessFailedSegment {
 static HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
 static APP: OnceLock<AppHandle> = OnceLock::new();
 
-fn http_client() -> &'static reqwest::Client {
+pub fn http_client() -> &'static reqwest::Client {
     HTTP_CLIENT.get_or_init(|| {
         reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(60))
@@ -159,7 +159,7 @@ fn render_user_prompt(system_prompt: &str, glossary_terms: &[String], source: &s
     prompt
 }
 
-async fn load_provider_inputs(
+pub async fn load_provider_inputs(
     pool: &SqlitePool,
 ) -> Result<
     (
@@ -172,7 +172,7 @@ async fn load_provider_inputs(
         Option<f32>,
         Option<f32>,
     ),
-    String,
+    PostprocessError,
 > {
     let setting = SettingsRepository::get_model_config(pool)
         .await
