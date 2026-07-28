@@ -77,7 +77,7 @@ In the same change, fix the two environment-level issues by:
 | File | Change |
 |---|---|
 | `frontend/src-tauri/Cargo.toml` | Bump three `whisper-rs` version pins from `0.13.2` to `0.14.x` |
-| `Cargo.lock` | Delete — let cargo regenerate with the new dep pair |
+| `Cargo.lock` | Delete — cargo will regenerate it with the new dep pair on the next build |
 | `scripts/quickstart.bat` | (1) `set CARGO_BUILD_TARGET=x86_64-pc-windows-msvc` before pnpm call; (2) `set CMAKE_C_FLAGS=/utf-8` and `set CMAKE_CXX_FLAGS=/utf-8` before pnpm call; (3) new step after `pnpm install` runs `cargo build --release -p llama-helper` and copies the binary into `binaries/llama-helper-x86_64-pc-windows-msvc.exe` |
 | `frontend/src-tauri/src/whisper_engine/*.rs` | Only if `whisper-rs 0.14.x` changed the `FullParams` high-level API surface. Estimated 0–10 lines of adjustment, driven by actual compiler errors |
 
