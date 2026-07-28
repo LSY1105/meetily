@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 use tokio::sync::Mutex as AsyncMutex;
 use anyhow::Result;
 use log::{info, warn, error};
-use tauri::{AppHandle, Runtime, Emitter};
+use tauri::{AppHandle, Manager, Runtime, Emitter};
 use tokio::sync::mpsc;
 use serde::{Serialize, Deserialize};
 use std::path::PathBuf;
