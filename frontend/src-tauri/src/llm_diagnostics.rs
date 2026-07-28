@@ -144,6 +144,8 @@ impl LLMDiagnosticsState {
     }
 }
 
+fn default_origin() -> &'static str { "manual" }
+
 fn now_ts() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
