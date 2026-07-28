@@ -531,12 +531,6 @@ mod tests {
             "张三 said can't"
         );
     }
-}
-
-impl Default for PostProcessor {
-    fn default() -> Self {
-        Self::new()
-    }
 
     // ---- Wave 18 PR-55: protected-terms restoration ----
 
@@ -617,8 +611,6 @@ impl Default for PostProcessor {
         set_terms_for_test(vec![]);
     }
 
-
-
     #[test]
     fn hotwords_for_llm_set_read_roundtrip_empty() {
         set_hotwords_for_llm(vec![]);
@@ -629,5 +621,11 @@ impl Default for PostProcessor {
     fn hotwords_for_llm_set_read_roundtrip_multi() {
         set_hotwords_for_llm(vec!["AGI".to_string(), "OpenAI".to_string(), "foo".to_string()]);
         assert_eq!(read_hotwords_for_llm(), vec!["AGI", "OpenAI", "foo"]);
+    }
+}
+
+impl Default for PostProcessor {
+    fn default() -> Self {
+        Self::new()
     }
 }
