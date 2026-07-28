@@ -2,7 +2,28 @@
 
 **Date**: 2026-07-28
 **Branch**: devtest
-**Status**: Approved (pending written-spec user review)
+**Status**: ~~Approved~~ **Abandoned 2026-07-28**. See "What shipped instead" below.
+
+## What shipped instead
+
+The upgrade path proposed in this spec (bumping `whisper-rs` 0.13.2 → 0.14.4
+and `whisper-rs-sys` 0.11.1 → 0.13.1) was attempted and reverted. sys 0.13.1
+has the same opaque-bindings bug as sys 0.11.1, plus would have required
+adapting the project to whisper-rs 0.14.x's high-level API churn.
+
+The fix that actually shipped is a **local vendor patch of sys 0.11.1**
+(`patches/whisper-rs-sys-0.11.1/`), wired via `[patch.crates-io]` in the
+workspace root `Cargo.toml`. The patch disables bindgen layout tests
+(`.layout_tests(false)`), strips them from the shipped `src/bindings.rs`,
+injects `/utf-8` for windows-msvc targets via `config.cflag/cxxflag`, and
+fixes an incidental `whisper_gretype` type mismatch.
+
+`WHISPER_DONT_GENERATE_BINDINGS=1` lives in `.cargo/config.toml` at the
+workspace root, making sys's build.rs use the patched shipped bindings
+instead of running bindgen.
+
+See `patches/README.md` for full rationale, what's modified, and how to
+remove the patch when upstream fixes land.
 
 ## Problem
 

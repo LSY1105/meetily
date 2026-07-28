@@ -11,4 +11,9 @@ rustflags = [
 [env]
 MACOSX_DEPLOYMENT_TARGET = { value = "14.2", force = true }
 CMAKE_OSX_DEPLOYMENT_TARGET = "14.2"
+# whisper-rs-sys's local bindgen produces layout tests anchored at glibc
+# sizes that overflow at compile time on Windows MSVC. The patch at
+# patches/whisper-rs-sys-0.11.1/ strips them from src/bindings.rs; this
+# env var makes sys's build.rs copy that file instead of regenerating it.
+# See patches/README.md.
 WHISPER_DONT_GENERATE_BINDINGS = "1"
