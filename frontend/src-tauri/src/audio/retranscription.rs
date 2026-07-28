@@ -438,6 +438,11 @@ async fn run_retranscription<R: Runtime>(
         .await
         .map_err(|e| anyhow!("Failed to start transaction: {}", e))?;
 
+    // Ponytail: this block duplicates TranscriptsRepository::replace_meeting_segments
+    // by design — retranscription preserves each segment's existing id so the
+    // audio_chunk linkage in incremental_saver.rs stays intact, whereas the
+    // repo helper regenerates ids (Uuid). Touch them again when a single
+    // replace-by-id path is added.
     sqlx::query("DELETE FROM transcripts WHERE meeting_id = ?")
         .bind(&meeting_id)
         .execute(&mut *tx)
@@ -521,7 +526,6 @@ async fn run_retranscription<R: Runtime>(
             }
             });
         }
-    }
 
     Ok(RetranscriptionResult {
         meeting_id,
