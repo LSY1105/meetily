@@ -103,7 +103,7 @@ pub async fn start_retranscription<R: Runtime>(
     RETRANSCRIPTION_CANCELLED.store(false, Ordering::SeqCst);
 
     let use_parakeet = provider.as_deref() == Some("parakeet");
-    let result = run_retranscription(app.clone(), meeting_id.clone(), meeting_folder_path, language, model, provider).await;
+    let result = run_retranscription(app.clone(), meeting_id.clone(), meeting_folder_path, language, model, provider, initial_prompt).await;
 
     // Unload the engine after the batch job (success, failure, or cancellation)
     super::common::unload_engine_after_batch(use_parakeet).await;
@@ -177,6 +177,7 @@ async fn run_retranscription<R: Runtime>(
     language: Option<String>,
     model: Option<String>,
     provider: Option<String>,
+    initial_prompt: Option<String>,
 ) -> Result<RetranscriptionResult> {
     let folder_path = PathBuf::from(&meeting_folder_path);
     let audio_path = find_audio_file(&folder_path)?;
