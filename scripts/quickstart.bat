@@ -20,6 +20,7 @@ setlocal
 cd /d "%~dp0.."
 set "LOG=%CD%\quickstart.log"
 set "FRONTEND=%CD%\frontend"
+set "FRONTEND_SRC_TAURI=%FRONTEND%\src-tauri"
 echo. > "%LOG%"
 
 call :log "quickstart starting (Windows); cwd=%CD%"
@@ -85,16 +86,16 @@ if not exist "%FRONTEND%\node_modules" (
 
 REM Build llama-helper sidecar (matches what CI does in build-windows.yml).
 REM Tauri fails to launch without binaries\llama-helper-<target>.exe.
-if not exist "%FRONTEND%\binaries\llama-helper-x86_64-pc-windows-msvc.exe" (
+if not exist "%FRONTEND_SRC_TAURI%\binaries\llama-helper-x86_64-pc-windows-msvc.exe" (
   call :log "building llama-helper sidecar (release, CPU-only)"
-  cargo build --release -p llama-helper 1>>"%LOG%" 2>&1
+  cargo build --release -p llama-helper --target x86_64-pc-windows-msvc 1>>"%LOG%" 2>&1
   if errorlevel 1 (
     call :err "llama-helper build failed (see %LOG%)"
     call :pause_keep_open
     exit /b 1
   )
-  if not exist "%FRONTEND%\binaries" mkdir "%FRONTEND%\binaries" 1>>"%LOG%" 2>&1
-  copy /Y "%CD%\target\release\llama-helper.exe" "%FRONTEND%\binaries\llama-helper-x86_64-pc-windows-msvc.exe" 1>>"%LOG%" 2>&1
+  if not exist "%FRONTEND_SRC_TAURI%\binaries" mkdir "%FRONTEND_SRC_TAURI%\binaries" 1>>"%LOG%" 2>&1
+  copy /Y "%CD%\target\x86_64-pc-windows-msvc\release\llama-helper.exe" "%FRONTEND_SRC_TAURI%\binaries\llama-helper-x86_64-pc-windows-msvc.exe" 1>>"%LOG%" 2>&1
   if errorlevel 1 (
     call :err "copying llama-helper.exe to binaries\ failed (see %LOG%)"
     call :pause_keep_open
