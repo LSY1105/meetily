@@ -39,12 +39,12 @@ pub struct LastTestResult {
     pub ts: u64,
     /// PR-47: which probe produced this. 'manual' (button) or 'scheduled' (background).
     #[serde(default = "default_origin")]
-    pub origin: &'static str,
+    pub origin: String,
 }
 
 impl LastTestResult {
     pub fn ok(latency_ms: u128) -> Self {
-        Self { ok: true, latency_ms, code: None, message: None, ts: now_ts(), origin: "manual" }
+        Self { ok: true, latency_ms, code: None, message: None, ts: now_ts(), origin: "manual".to_string() }
     }
     pub fn failed(latency_ms: u128, code: &str, message: &str) -> Self {
         Self {
@@ -53,13 +53,13 @@ impl LastTestResult {
             code: Some(code.to_string()),
             message: Some(message.to_string()),
             ts: now_ts(),
-            origin: "manual",
+            origin: "manual".to_string(),
         }
     }
 
     /// PR-47: override the `origin` tag (manual vs scheduled).
-    pub fn with_origin(mut self, origin: &'static str) -> Self {
-        self.origin = origin;
+    pub fn with_origin(mut self, origin: &str) -> Self {
+        self.origin = origin.to_string();
         self
     }
 }
@@ -144,7 +144,7 @@ impl LLMDiagnosticsState {
     }
 }
 
-fn default_origin() -> &'static str { "manual" }
+fn default_origin() -> String { "manual".to_string() }
 
 fn now_ts() -> u64 {
     SystemTime::now()
