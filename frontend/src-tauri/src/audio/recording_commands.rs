@@ -45,6 +45,19 @@ static TRANSCRIPTION_TASK: Mutex<Option<JoinHandle<()>>> = Mutex::new(None);
 // Listener ID for proper cleanup - prevents microphone from staying active after recording stops
 static TRANSCRIPT_LISTENER_ID: Mutex<Option<tauri::EventId>> = Mutex::new(None);
 
+/// PR-44a: accessor used by the transcription worker to push realtime
+/// speaker embeddings into the active recording session's buffer. Falls
+/// back to an empty buffer so that pre-recording chunk handling stays
+/// non-fatal.
+pub fn current_diarization_buffer() -> std::sync::Arc<crate::diarization::EmbeddingBuffer> {
+    if let Ok(manager_guard) = RECORDING_MANAGER.lock() {
+        if let Some(manager) = manager_guard.as_ref() {
+            return manager.diarization_buffer();
+        }
+    }
+    std::sync::Arc::new(crate::diarization::EmbeddingBuffer::default())
+}
+
 // ============================================================================
 // PUBLIC TYPES
 // ============================================================================
@@ -265,21 +278,7 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
         *global_task = Some(task_handle);
     }
 
-    /// PR-44a: accessor used by the transcription worker to push realtime
-/// speaker embeddings into the active recording session's buffer. Falls
-/// back to an empty buffer so that pre-recording chunk handling stays
-/// non-fatal.
-pub fn current_diarization_buffer() -> std::sync::Arc<crate::diarization::EmbeddingBuffer> {
-    use std::sync::Arc;
-    if let Ok(manager_guard) = RECORDING_MANAGER.lock() {
-        if let Some(manager) = manager_guard.as_ref() {
-            return manager.diarization_buffer();
-        }
-    }
-    Arc::new(crate::diarization::EmbeddingBuffer::default())
-}
-
-// CRITICAL: Listen for transcript-update events and save to recording manager
+    // CRITICAL: Listen for transcript-update events and save to recording manager
     // This enables transcript history persistence for page reload sync
     // Store listener ID for cleanup during stop_recording to ensure microphone is released
     {
