@@ -56,45 +56,12 @@ Read `frontend/src-tauri/src/audio/post_processor.rs` lines 530-640. You will mo
 
 - [ ] **Step 3: Delete lines 541-632 from inside `impl Default for PostProcessor`**
 
-Use Edit tool with `old_string` matching lines 540-633 (the empty line before `// ---- Wave 18 PR-55:` through the `}` that closes `impl Default for PostProcessor`). Replace with just the closing `}` for the impl block.
+Use Edit tool. Construct `old_string` and `new_string` from the actual lines you read in Step 2:
 
-The exact `old_string` (copy this from the file):
-```
-    // ---- Wave 18 PR-55: protected-terms restoration ----
+- `old_string`: the entire block from the empty line preceding `// ---- Wave 18 PR-55: protected-terms restoration ----` (around line 540) through the closing `}` of `impl Default for PostProcessor` (around line 633). This includes the `// ---- Wave 18` comment, the `static TERMS_LOCK`, the `set_terms_for_test` helper, all 7 `#[test]` functions, and the final `}` that closes the impl.
+- `new_string`: a single `}` (which will be the new closer of `impl Default for PostProcessor`, with only `fn default() -> Self { Self::new() }` inside).
 
-    // Wave 18 PR-55: tests share the global PROTECTED_TERMS cache, so a
-    // per-test mutex serialises them and prevents parallel runs from
-    // racing each other's terms. (Avoids pulling in the `serial_test` crate.)
-    static TERMS_LOCK: once_cell::sync::Lazy<std::sync::Mutex<()>> =
-        once_cell::sync::Lazy::new(|| std::sync::Mutex::new(()));
-
-    fn set_terms_for_test(terms: Vec<&'static str>) {
-        let _guard = TERMS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        set_protected_terms(terms.into_iter().map(String::from).collect());
-    }
-
-    #[test]
-    fn protect_restore_roundtrip_single_term() {
-        ...
-    }
-
-    ...
-    #[test]
-    fn hotwords_for_llm_set_read_roundtrip_multi() {
-        set_hotwords_for_llm(vec!["AGI".to_string(), "OpenAI".to_string(), "foo".to_string()]);
-        assert_eq!(read_hotwords_for_llm(), vec!["AGI", "OpenAI", "foo"]);
-    }
-}
-```
-
-The `new_string` is just:
-```
-}
-```
-
-If the file has whitespace/indentation differences from this template, copy the actual content from the file you read in Step 2 and adapt.
-
-After this edit, lines 541-632 should be gone, and `impl Default for PostProcessor { fn default() -> Self { Self::new() } }` should remain.
+After this edit, `impl Default for PostProcessor` should contain only the `fn default()` method, and the PR-55 block should be gone from the file.
 
 - [ ] **Step 4: Paste the moved block inside `mod tests`, just before its closing `}`**
 
