@@ -59,6 +59,12 @@ call :log "using pnpm: %PNPM%"
 REM Force x86_64 target (matches project / CI; host rustup default is aarch64)
 set "CARGO_BUILD_TARGET=x86_64-pc-windows-msvc"
 
+REM whisper-rs-sys 0.11.1 forwards CMAKE_* env vars to cmake via config.define().
+REM whisper.cpp/src/whisper.cpp contains UTF-8 string literals with CJK punctuation;
+REM without /utf-8, MSVC interprets the source as GBK on CJK Windows locales and
+REM emits C3688 (invalid text-literal suffix) errors during whisper.cpp compile.
+set "CMAKE_CXX_FLAGS=/utf-8"
+
 where cargo >nul 2>&1
 if errorlevel 1 (
   call :err "cargo is not installed"
