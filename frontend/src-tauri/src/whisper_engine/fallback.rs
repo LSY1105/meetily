@@ -19,7 +19,7 @@ pub enum EngineKind {
 }
 
 impl EngineKind {
-    pub fn name(self) -> 'static str {
+    pub fn name(self) -> &'static str {
         match self {
             EngineKind::Cuda => "CUDA",
             EngineKind::Metal => "Metal",
