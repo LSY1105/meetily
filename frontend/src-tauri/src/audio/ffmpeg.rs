@@ -230,3 +230,103 @@ fn get_ffmpeg_install_dir() -> Result<PathBuf, anyhow::Error> {
     // Your existing logic for other platforms
     sidecar_dir().map_err(|e| anyhow::anyhow!(e))
 }
+
+use std::path::Path;
+use std::process::Command;
+
+/// Convert a path to a UTF-8 string for use as a ffmpeg CLI argument.
+/// Three callsites in the codebase hit the same OsStr->&str dance; this keeps
+/// the error messages uniform.
+pub fn path_str<'a>(path: &'a Path, what: &str) -> anyhow::Result<&'a str> {
+    path.to_str()
+        .ok_or_else(|| anyhow::anyhow!("{} path is not valid UTF-8: {}", what, path.display()))
+}
+
+/// Carries the stderr tail out of a failed ffmpeg run so the recovery
+/// banner's log pane has something to render. On success the helper just
+/// returns `Ok(())`; stderr is only material on the failure path.
+#[derive(Debug)]
+pub struct FfmpegFailure {
+    pub code: Option<i32>,
+    pub stderr_tail: String,
+}
+
+impl std::fmt::Display for FfmpegFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "FFmpeg failed (exit {:?}): {}", self.code, self.stderr_tail)
+    }
+}
+
+impl std::error::Error for FfmpegFailure {}
+
+const STDERR_TAIL_BYTES: usize = 4096;
+
+/// Floor a UTF-8 offset back to the nearest preceding char boundary without
+/// panicking on multi-byte sequences. Ponytail: stdlib
+/// `str::floor_char_boundary` (Rust 1.79+) would replace this — the
+/// workspace pins to 1.77, so the inline fallback stays.
+fn floor_char_boundary_back(s: &str, start_from_end: usize) -> usize {
+    let end = s.len();
+    if end <= start_from_end {
+        return 0;
+    }
+    let start = end - start_from_end;
+    if s.is_char_boundary(start) {
+        start
+    } else {
+        s.char_indices()
+            .map(|(i, _)| i)
+            .take_while(|&i| i <= start)
+            .last()
+            .unwrap_or(0)
+    }
+}
+
+/// Run ffmpeg with the supplied args. `cleanup_on_fail` paths are removed
+/// if ffmpeg exits non-zero (or fails to spawn), so callers never have to
+/// remember to delete partial output files manually. The error variant
+/// `FfmpegFailure` carries the stderr tail, so the recovery banner can
+/// surface it without parsing the message string.
+///
+/// The two `decode + allocate` paths fall only on failure, so a successful
+/// run never copies a megabyte of stderr into a String the caller discards.
+/// `-loglevel error -nostats` keeps ffmpeg itself quiet so this matters on
+/// the concat path with hundreds of checkpoint files.
+pub fn run_ffmpeg(args: &[&str], cleanup_on_fail: &[&Path]) -> Result<(), FfmpegFailure> {
+    let ffmpeg = find_ffmpeg_path().ok_or_else(|| FfmpegFailure {
+        code: None,
+        stderr_tail: "FFmpeg not found".to_string(),
+    })?;
+    let mut cmd = Command::new(ffmpeg);
+    cmd.args(args);
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    let output = match cmd.output() {
+        Ok(o) => o,
+        Err(e) => {
+            for p in cleanup_on_fail {
+                let _ = std::fs::remove_file(p);
+            }
+            return Err(FfmpegFailure {
+                code: None,
+                stderr_tail: format!("failed to spawn ffmpeg: {}", e),
+            });
+        }
+    };
+    if !output.status.success() {
+        for p in cleanup_on_fail {
+            let _ = std::fs::remove_file(p);
+        }
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let start = floor_char_boundary_back(&stderr, STDERR_TAIL_BYTES);
+        return Err(FfmpegFailure {
+            code: output.status.code(),
+            stderr_tail: stderr[start..].to_string(),
+        });
+    }
+    Ok(())
+}
