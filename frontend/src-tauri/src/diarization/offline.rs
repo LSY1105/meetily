@@ -62,7 +62,7 @@ pub async fn commit_speaker_labels(
     for (seg_id, seg_start, seg_end) in segments {
         let mid = (seg_start + seg_end) / 2.0;
         let mut best_idx = 0usize;
-        let mut best_dist = f32::MAX;
+        let mut best_dist = f64::MAX;
         for (i, w) in windows.iter().enumerate() {
             let d = (mid - (w.audio_start + w.audio_end) / 2.0).abs();
             if d < best_dist {
