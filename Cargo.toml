@@ -16,3 +16,11 @@ anyhow = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.32.0", features = ["full"] }
+
+# whisper-rs-sys 0.11.1's bindgen emits layout tests anchored at glibc sizes
+# (_IO_FILE=216, _G_fpos_t=16); on Windows MSVC those types are 208/12, so the
+# generated `size_of::<_IO_FILE>() - 216` overflows at compile time (E0080).
+# Local patch adds .layout_tests(false). Must live at the workspace root --
+# cargo ignores [patch] in non-root members.
+[patch.crates-io]
+whisper-rs-sys = { path = "patches/whisper-rs-sys-0.11.1" }
