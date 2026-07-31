@@ -118,6 +118,8 @@
           "success": "連線成功 ({latency})",
           "failed": "連線失敗 ({code})"
         },
+        "api_key_required": "需要 API 金鑰",
+        "api_key_not_required": "無需 API 金鑰",
         "diagnostics": {
           "title": "LLM 診斷",
           "description": "最近 200 次 LLM 後處理失敗的聚合統計，以及最近一次手動探測結果。",

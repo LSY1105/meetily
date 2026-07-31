@@ -933,6 +933,7 @@ pub async fn api_save_transcript<R: Runtime>(
     meeting_title: String,
     transcripts: Vec<serde_json::Value>,
     folder_path: Option<String>,
+    meeting_id: Option<String>,
     auth_token: Option<String>,
 ) -> Result<serde_json::Value, String> {
     log_info!(
@@ -951,10 +952,24 @@ pub async fn api_save_transcript<R: Runtime>(
         );
     }
 
-    // Convert serde_json::Value to TranscriptSegment
+    // Convert serde_json::Value to TranscriptSegment.
+    //
+    // PR-51 (inline segment edit) sends `timestamp` as a number — the
+    // playback-relative audio_start_time. Coerce numbers to a string here so
+    // serde_json's strict typing doesn't reject the payload.
     let transcripts_to_save: Vec<TranscriptSegment> = transcripts
         .into_iter()
-        .map(serde_json::from_value)
+        .map(|mut v| {
+            if let Some(obj) = v.as_object_mut() {
+                if let Some(n) = obj.get("timestamp").and_then(|t| t.as_f64()) {
+                    obj.insert(
+                        "timestamp".to_string(),
+                        serde_json::Value::String(n.to_string()),
+                    );
+                }
+            }
+            serde_json::from_value::<TranscriptSegment>(v)
+        })
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| {
             log_error!("Failed to parse transcript segments: {}", e);
@@ -971,6 +986,25 @@ pub async fn api_save_transcript<R: Runtime>(
     }
 
     let pool = state.db_manager.pool();
+
+    // Inline-edit / merge / split pass the existing meeting_id and want an
+    // in-place replacement. Without this branch the meeting is duplicated on
+    // every save, which is what PR-51 fixed — make sure the fix actually
+    // wires through to the SQL UPDATE.
+    if let Some(existing_id) = meeting_id.as_deref() {
+        if let Err(e) =
+            TranscriptsRepository::replace_meeting_segments(pool, existing_id, &transcripts_to_save)
+                .await
+        {
+            log_error!("Error replacing segments for meeting '{}': {}", existing_id, e);
+            return Err(format!("Failed to save transcript: {}", e));
+        }
+        return Ok(serde_json::json!({
+            "status": "success",
+            "message": "Transcript saved successfully",
+            "meeting_id": existing_id
+        }));
+    }
 
     // Now, call the repository with the correctly typed data.
     match TranscriptsRepository::save_transcript(
@@ -1072,6 +1106,16 @@ pub async fn open_meeting_folder<R: Runtime>(
             Err("Meeting not found".to_string())
         }
     }
+}
+
+/// Returns the auto-generate setting (default: false)
+/// Used by ModelSettingsModal to check if auto-generation is enabled
+#[tauri::command]
+pub async fn api_get_auto_generate_setting<R: Runtime>(
+    _app: AppHandle<R>,
+) -> Result<bool, String> {
+    log_debug!("api_get_auto_generate_setting called");
+    Ok(false)
 }
 
 // Simple test command to check backend connectivity

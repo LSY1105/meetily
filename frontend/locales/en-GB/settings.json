@@ -118,6 +118,8 @@
           "success": "Connection OK ({latency})",
           "failed": "Connection failed ({code})"
         },
+        "api_key_required": "Requires API key",
+        "api_key_not_required": "No API key required",
         "diagnostics": {
           "title": "LLM diagnostics",
           "description": "Aggregated failure buckets from the last 200 LLM postprocess attempts and the most recent manual probe.",

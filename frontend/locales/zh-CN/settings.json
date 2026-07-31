@@ -118,6 +118,8 @@
           "success": "连接成功 ({latency})",
           "failed": "连接失败 ({code})"
         },
+        "api_key_required": "需要 API 密钥",
+        "api_key_not_required": "无需 API 密钥",
         "diagnostics": {
           "title": "LLM 诊断",
           "description": "最近 200 次 LLM 后处理失败的聚合统计，以及最近一次手动探测结果。",
