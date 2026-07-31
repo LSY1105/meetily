@@ -4,7 +4,7 @@ use tauri_plugin_store::StoreExt;
 use log::{info, warn};
 use anyhow::Result;
 
-pub const SUPPORTED_LOCALES: &[&str] = &["en-US", "zh-CN"];
+pub const SUPPORTED_LOCALES: &[&str] = &["en-US", "en-GB", "zh-CN", "zh-TW", "ja-JP", "ko-KR"];
 pub const DEFAULT_LOCALE: &str = "en-US";
 const STORE_FILE: &str = "ui-locale.json";
 const STORE_KEY: &str = "language";
@@ -110,7 +110,7 @@ mod tests {
     fn supported_locales_match_frontend() {
         // Mirror of frontend/src/i18n/config.ts LOCALES constant.
         // Cross-checked at PR review time.
-        assert_eq!(SUPPORTED_LOCALES, &["en-US", "zh-CN"]);
+        assert_eq!(SUPPORTED_LOCALES, &["en-US", "en-GB", "zh-CN", "zh-TW", "ja-JP", "ko-KR"]);
     }
 
     #[test]
