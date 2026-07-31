@@ -41,7 +41,13 @@ pub fn ensure_loaded() -> Result<()> {
 ///
 /// Real sherpa-onnx inference is wired in PR-44b; this deterministic stub
 /// keeps callers compilable and gives us a unit-testable code path now.
+#[allow(unreachable_code, unused_variables)]
 pub fn extract_embedding(samples: &[f32], sample_rate: u32) -> Result<Vec<f32>> {
+    // ponytail: stub embedder returns RMS-only vectors. All embeddings
+    // land on the same axis, so cosine affinity is uniform and speaker
+    // labels are arbitrary. Disabled until a real model is wired.
+    return Err(anyhow!("Speaker embedding not yet implemented"));
+
     if samples.is_empty() {
         return Err(anyhow!("empty audio"));
     }
@@ -71,6 +77,9 @@ pub fn push_window(
             buffer.push(WindowedEmbedding { audio_start: start, audio_end: end, vec });
             true
         }
-        Err(_) => false,
+        Err(e) => {
+            log::debug!("push_window: diarization disabled: {}", e);
+            false
+        }
     }
 }
