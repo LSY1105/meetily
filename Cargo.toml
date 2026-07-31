@@ -22,5 +22,12 @@ tokio = { version = "1.32.0", features = ["full"] }
 # generated `size_of::<_IO_FILE>() - 216` overflows at compile time (E0080).
 # Local patch adds .layout_tests(false). Must live at the workspace root --
 # cargo ignores [patch] in non-root members.
+#
+# llama-cpp-sys-2 0.1.152's build.rs uses cc-rs with /std:c++17 on MSVC,
+# which by default disables C++ exceptions. The llama.cpp wrapper source
+# uses `try` (C++ exceptions), so without /EHsc the build fails with
+# "cannot use 'try' with exceptions disabled". Local patch adds
+# common_wrapper_build.flag("/EHsc") and the equivalent for mtmd.
 [patch.crates-io]
 whisper-rs-sys = { path = "patches/whisper-rs-sys-0.11.1" }
+llama-cpp-sys-2 = { path = "patches/llama-cpp-sys-2-0.1.152" }
