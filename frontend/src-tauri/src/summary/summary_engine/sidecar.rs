@@ -239,11 +239,20 @@ impl SidecarManager {
                 .ok_or_else(|| anyhow!("Failed to determine project root"))?
                 .to_path_buf();
 
+            let target_triple = std::env::var("CARGO_BUILD_TARGET").ok();
+            let target_release_dir = match target_triple.as_deref() {
+                Some(triple) => project_root.join(format!("target/{}/release", triple)),
+                None => project_root.join("target/release"),
+            };
+            let target_debug_dir = match target_triple.as_deref() {
+                Some(triple) => project_root.join(format!("target/{}/debug", triple)),
+                None => project_root.join("target/debug"),
+            };
+
+            let exe_suffix = if cfg!(windows) { ".exe" } else { "" };
             let candidates = vec![
-                project_root.join("target/release/llama-helper"),
-                project_root.join("target/debug/llama-helper"),
-                project_root.join("target/release/llama-helper.exe"),
-                project_root.join("target/debug/llama-helper.exe"),
+                target_release_dir.join(format!("llama-helper{}", exe_suffix)),
+                target_debug_dir.join(format!("llama-helper{}", exe_suffix)),
             ];
 
             for candidate in candidates {
