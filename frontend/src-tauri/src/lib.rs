@@ -797,6 +797,7 @@ pub fn run() {
             llm_health::set_llm_health_check_interval_secs,
             onboarding::save_onboarding_status_cmd,
             onboarding::reset_onboarding_status_cmd,
+            onboarding::get_onboarding_status,
             onboarding::complete_onboarding,
             // System settings commands
             #[cfg(target_os = "macos")]
