@@ -262,7 +262,13 @@ export function DownloadProgressStep() {
       error?: string;
     }>('builtin-ai-download-progress', (event) => {
       const { model, progress, downloaded_mb, total_mb, speed_mbps, status, error } = event.payload;
-      if (selectedSummaryModel && model === selectedSummaryModel) {
+      // Accept the event if it matches the selected model, or if no
+      // selected model is set yet (event arrives before the UI hint
+      // is wired up). The event's `model` field is authoritative.
+      const matchesSelected = selectedSummaryModel
+        ? model === selectedSummaryModel
+        : true;
+      if (matchesSelected) {
         setSummaryState((prev) => ({
           ...prev,
           status: status === 'completed'
