@@ -13,7 +13,7 @@ export const DEFAULT_WHISPER_MODEL = 'large-v3-turbo';
  * Default Parakeet model for transcription when no preference is configured.
  * This is the quantized version optimized for speed.
  */
-export const DEFAULT_PARAKEET_MODEL = 'parakeet-tdt-0.6b-v3-int8';
+export const DEFAULT_PARAKEET_MODEL = 'nemo-parakeet-tdt-0.6b-v3-multi';
 
 /**
  * Model defaults by provider type

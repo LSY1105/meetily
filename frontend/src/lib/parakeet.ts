@@ -38,6 +38,13 @@ export interface ModelDisplayInfo {
 }
 
 export const MODEL_DISPLAY_CONFIG: Record<string, ModelDisplayInfo> = {
+  'nemo-parakeet-tdt-0.6b-v3-multi': {
+    friendlyName: 'Lightning',
+    icon: '⚡',
+    tagline: 'Real time • Multilingual (25 European languages)',
+    recommended: true,
+    tier: 'fastest'
+  },
   'parakeet-tdt-0.6b-v3-int8': {
     friendlyName: 'Lightning',
     icon: '⚡',
@@ -63,6 +70,13 @@ export const MODEL_DISPLAY_CONFIG: Record<string, ModelDisplayInfo> = {
 // Supported models: parakeet-tdt-0.6b in v2 and v3 variants
 // Source: https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx
 export const PARAKEET_MODEL_CONFIGS: Record<string, Partial<ParakeetModelInfo>> = {
+  'nemo-parakeet-tdt-0.6b-v3-multi': {
+    description: 'Multilingual v3 (25 European languages), int8 quantized',
+    size_mb: 670,
+    accuracy: 'High',
+    speed: 'Ultra Fast',
+    quantization: 'Int8'
+  },
   'parakeet-tdt-0.6b-v3-int8': {
     description: 'Real time on M4 Max, optimized for speed',
     size_mb: 670, // Actual download: 652MB encoder + 18.2MB decoder + 0.2MB extras
@@ -140,12 +154,12 @@ export function getModelPerformanceBadge(quantization: QuantizationType): { labe
 }
 
 export function getRecommendedModel(systemSpecs?: { ram: number; cores: number }): string {
-  // Default to Int8 quantized model (fastest)
-  if (!systemSpecs) return 'parakeet-tdt-0.6b-v3-int8';
+  // Default to multilingual int8 model for broadest language support
+  if (!systemSpecs) return 'nemo-parakeet-tdt-0.6b-v3-multi';
 
   // For any system, prefer Int8 for speed
   // FP32 can be used if user explicitly wants higher precision
-  return 'parakeet-tdt-0.6b-v3-int8';
+  return 'nemo-parakeet-tdt-0.6b-v3-multi';
 }
 
 // Tauri command wrappers for Parakeet backend

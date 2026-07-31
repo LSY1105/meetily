@@ -172,7 +172,8 @@ impl ParakeetEngine {
         // Model name format: parakeet-tdt-0.6b-v{version}-{quantization}
         // Sizes match actual download sizes (encoder + decoder + preprocessor + vocab)
         let model_configs = [
-            ("parakeet-tdt-0.6b-v3-int8", 670, QuantizationType::Int8, "Ultra Fast (v3)", "Real time on M4 Max, latest version with int8 quantization"),
+            ("nemo-parakeet-tdt-0.6b-v3-multi", 670, QuantizationType::Int8, "Ultra Fast (multilingual)", "Multilingual v3 (25 European languages), int8 quantized"),
+            ("parakeet-tdt-0.6b-v3-int8", 670, QuantizationType::Int8, "Ultra Fast (v3 English)", "Real time on M4 Max, latest version with int8 quantization, English only"),
             ("parakeet-tdt-0.6b-v2-int8", 661, QuantizationType::Int8, "Fast (v2)", "Previous version with int8 quantization, good balance of speed and accuracy"),
         ];
 
@@ -593,8 +594,11 @@ impl ParakeetEngine {
         // HuggingFace base URL for Parakeet models (version-specific)
         let base_url = if model_name.contains("-v2-") {
             "https://huggingface.co/istupakov/parakeet-tdt-0.6b-v2-onnx/resolve/main"
+        } else if model_name.contains("nemo-parakeet-tdt-0.6b-v3-multi") {
+            // Multilingual v3 ONNX export (25 European languages)
+            "https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx/resolve/main"
         } else {
-            // Default to v3 for v3 models
+            // English-only v3 fallback
             "https://meetily.towardsgeneralintelligence.com/models/parakeet-tdt-0.6b-v3-onnx"
         };
 

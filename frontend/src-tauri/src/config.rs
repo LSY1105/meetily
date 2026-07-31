@@ -9,7 +9,7 @@ pub const DEFAULT_WHISPER_MODEL: &str = "large-v3-turbo";
 
 /// Default Parakeet model for transcription when no preference is configured.
 /// This is the quantized version optimized for speed.
-pub const DEFAULT_PARAKEET_MODEL: &str = "parakeet-tdt-0.6b-v3-int8";
+pub const DEFAULT_PARAKEET_MODEL: &str = "nemo-parakeet-tdt-0.6b-v3-multi";
 
 /// Whisper model catalog with metadata for all supported models.
 /// Used by both WhisperEngine::discover_models() and discover_models_standalone().
