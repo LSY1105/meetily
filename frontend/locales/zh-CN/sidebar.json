@@ -12,6 +12,8 @@
     "edit_title_dialog_title": "编辑会议标题",
     "edit_title_input_placeholder": "请输入新的会议标题",
     "edit_title_label": "会议标题",
+    "edit_title_aria": "编辑会议标题",
+    "delete_aria": "删除会议",
     "save": "保存",
     "cancel": "取消"
   },

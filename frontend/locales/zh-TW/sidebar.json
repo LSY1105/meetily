@@ -12,6 +12,8 @@
     "edit_title_dialog_title": "編輯會議標題",
     "edit_title_input_placeholder": "請輸入新的會議標題",
     "edit_title_label": "會議標題",
+    "edit_title_aria": "編輯會議標題",
+    "delete_aria": "刪除會議",
     "save": "儲存",
     "cancel": "取消"
   },

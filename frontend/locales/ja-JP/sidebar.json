@@ -12,6 +12,8 @@
     "edit_title_dialog_title": "会議タイトルを編集",
     "edit_title_input_placeholder": "会議タイトルを入力",
     "edit_title_label": "会議タイトル",
+    "edit_title_aria": "会議タイトルを編集",
+    "delete_aria": "会議を削除",
     "save": "保存",
     "cancel": "キャンセル"
   },

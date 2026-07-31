@@ -12,6 +12,8 @@
     "edit_title_dialog_title": "Edit Meeting Title",
     "edit_title_input_placeholder": "Enter meeting title",
     "edit_title_label": "Meeting Title",
+    "edit_title_aria": "Edit meeting title",
+    "delete_aria": "Delete meeting",
     "save": "Save",
     "cancel": "Cancel"
   },
