@@ -149,8 +149,8 @@ export default function ClientRootLayout({ children }: { children: React.ReactNo
   }, []);
 
   const handleOnboardingComplete = () => {
+    setOnboardingCompleted(true);
     setShowOnboarding(false);
-    window.location.reload();
   };
 
   return (

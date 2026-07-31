@@ -22,7 +22,7 @@ interface DownloadState {
   error?: string;
 }
 
-export function DownloadProgressStep() {
+export function DownloadProgressStep({ onComplete }: { onComplete: () => void }) {
   const {
     goNext,
     selectedSummaryModel,
@@ -378,11 +378,7 @@ export function DownloadProgressStep() {
       setIsCompleting(true);
       try {
         await completeOnboarding();
-
-        // Small delay to ensure state is saved before reload
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        window.location.reload();
+        onComplete();
       } catch (error) {
         console.error('Failed to complete onboarding:', error);
         toast.error('Failed to complete setup', {
