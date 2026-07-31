@@ -76,7 +76,7 @@ pub fn start(app: AppHandle, interval_secs: u64) {
     if interval_secs == 0 {
         return;
     }
-    tokio::spawn(async move {
+    tauri::async_runtime::spawn(async move {
         let interval = Duration::from_secs(interval_secs);
         loop {
             tokio::time::sleep(interval).await;
