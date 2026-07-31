@@ -109,8 +109,10 @@ pub async fn set_transcription_hotwords<R: Runtime>(
 /// for the postprocess restoration step).
 pub(crate) fn extract_protected_terms(raw: &str) -> Vec<String> {
     let mut seen = std::collections::HashSet::new();
+    // One term per line (comma also accepted). Splitting on spaces broke
+    // "! 张三" into ["!", "张三"], dropping both, and any multi-word term.
     let mut terms: Vec<String> = raw
-        .split(|c: char| matches!(c, '\n' | '\r' | '\t') || c == ' ')
+        .split(|c: char| matches!(c, '\n' | '\r' | ','))
         .filter_map(|s| {
             let trimmed = s.trim();
             if trimmed.is_empty() {
@@ -121,7 +123,10 @@ pub(crate) fn extract_protected_terms(raw: &str) -> Vec<String> {
         .filter(|s| !s.is_empty())
         .filter(|s| seen.insert(s.clone()))
         .collect();
-    terms.sort_by(|a, b| b.len().cmp(&a.len()));
+    // Length-descending so the longest match wins. Name as the tiebreak:
+    // "张三" and "OpenAI" are both 6 bytes, so without it the order came
+    // from input position and depended on how the splitter chunked the line.
+    terms.sort_by(|a, b| b.len().cmp(&a.len()).then_with(|| a.cmp(b)));
     terms
 }
 
@@ -132,7 +137,7 @@ pub(crate) fn extract_protected_terms(raw: &str) -> Vec<String> {
 pub(crate) fn extract_all_hotwords(raw: &str) -> Vec<String> {
     let mut seen = std::collections::HashSet::new();
     let mut terms: Vec<String> = raw
-        .split(|c: char| matches!(c, '\n' | '\r' | '\t') || c == ' ')
+        .split(|c: char| matches!(c, '\n' | '\r' | ','))
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
         .filter(|s| seen.insert(s.clone()))
