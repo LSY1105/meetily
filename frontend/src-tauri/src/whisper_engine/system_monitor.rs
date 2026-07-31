@@ -64,17 +64,27 @@ impl SystemMonitor {
             return Ok(());
         }
 
-        let mut system = self.system.write().await;
-        system.refresh_all();
-
-        // Wait a bit for accurate CPU readings (sysinfo requirement)
+        // Drop the write lock across the sleep, otherwise every concurrent
+        // reader blocks for 200ms.
+        {
+            let mut system = self.system.write().await;
+            system.refresh_memory();
+        }
+        // sysinfo needs a gap between two samples for a meaningful CPU number.
         tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
-        system.refresh_cpu_all();
+        {
+            let mut system = self.system.write().await;
+            system.refresh_cpu_all();
+        }
 
         Ok(())
     }
 
     pub async fn get_current_resources(&self) -> Result<SystemResources> {
+        // Without this the numbers come from the System::new_all() snapshot
+        // taken once at construction and never change.
+        self.refresh_system_info().await?;
+
         let system = self.system.read().await;
 
         let total_memory = system.total_memory();

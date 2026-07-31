@@ -134,10 +134,8 @@ pub async fn get_parallel_processing_status(
 pub async fn get_system_resources(
     state: State<'_, ParallelProcessorState>,
 ) -> Result<serde_json::Value, String> {
-    state.system_monitor.refresh_system_info()
-        .await
-        .map_err(|e| format!("Failed to refresh system info: {}", e))?;
-
+    // get_current_resources refreshes on its own now; a second call here
+    // would just add another 200ms sleep.
     let resources = state.system_monitor.get_current_resources()
         .await
         .map_err(|e| format!("Failed to get system resources: {}", e))?;
