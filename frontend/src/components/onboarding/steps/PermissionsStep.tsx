@@ -6,7 +6,7 @@ import { OnboardingContainer } from '../OnboardingContainer';
 import { PermissionRow } from '../shared';
 import { useOnboarding } from '@/contexts/OnboardingContext';
 
-export function PermissionsStep() {
+export function PermissionsStep({ onComplete }: { onComplete: () => void }) {
   const { setPermissionStatus, setPermissionsSkipped, permissions, completeOnboarding } = useOnboarding();
   const [isPending, setIsPending] = useState(false);
 
@@ -96,7 +96,7 @@ export function PermissionsStep() {
   const handleFinish = async () => {
     try {
       await completeOnboarding();
-      window.location.reload();
+      onComplete();
     } catch (error) {
       console.error('Failed to complete onboarding:', error);
     }
