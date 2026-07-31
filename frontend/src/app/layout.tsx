@@ -1,9 +1,9 @@
 import './globals.css'
 import { Source_Sans_3 } from 'next/font/google'
-import { NextIntlClientProvider } from 'next-intl'
 import { getLocale, getMessages } from 'next-intl/server'
 import { getStoredLocale } from '@/i18n/request'
 import { LocaleProvider } from '@/hooks/useLocale'
+import I18nProvider from './I18nProvider'
 import ClientRootLayout from './ClientRootLayout'
 import { Toaster } from 'sonner'
 import { DEFAULT_LOCALE, isSupportedLocale, type Locale } from '@/i18n/config'
@@ -28,11 +28,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang={locale}>
       <body className={`${sourceSans3.variable} font-sans antialiased`}>
-        <NextIntlClientProvider locale={locale} messages={messages}>
-          <LocaleProvider initial={locale}>
+        <LocaleProvider initial={locale}>
+          <I18nProvider initialLocale={locale} initialMessages={messages}>
             <ClientRootLayout>{children}</ClientRootLayout>
-          </LocaleProvider>
-        </NextIntlClientProvider>
+          </I18nProvider>
+        </LocaleProvider>
         <Toaster position="bottom-center" richColors closeButton />
       </body>
     </html>
