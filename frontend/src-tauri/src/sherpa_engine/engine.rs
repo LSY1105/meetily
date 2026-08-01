@@ -22,6 +22,8 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use bzip2::read::BzDecoder;
+use tar::Archive;
 
 /// Errors surfaced from the sherpa engine. Mirrors the shape used by the
 /// parakeet engine so callers can map to `TranscriptionError` consistently.
@@ -357,7 +359,7 @@ impl SherpaEngine {
 
     /// Download the bilingual streaming-zipformer model archive and extract it
     /// into the models dir. Emits `progress.percent` via the callback.
-    /// For now this delegates to a single reqwest stream + tar::Archive; the
+    /// For now this delegates to a single reqwest stream + Archive; the
     /// frontend can re-use the parakeet download UI without changes.
     pub async fn download_model_detailed(
         &self,
@@ -481,8 +483,8 @@ impl SherpaEngine {
             let tmp_path_sync = tmp_path.clone();
             tokio::task::spawn_blocking(move || -> Result<()> {
                 let file = std::fs::File::open(&tmp_path_sync)?;
-                let bz = bzip2::read::BzDecoder::new(file);
-                let mut archive = tar::Archive::new(bz);
+                let bz = BzDecoder::new(file);
+                let mut archive = Archive::new(bz);
                 archive.unpack(target_dir.clone())?;
                 Ok(())
             })

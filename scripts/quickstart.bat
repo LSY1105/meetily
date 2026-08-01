@@ -57,7 +57,14 @@ set "PNPM=%LocalAppData%\pnpm\pnpm.exe"
 call :log "using pnpm: %PNPM%"
 
 REM Force x86_64 target (matches project / CI; host rustup default is aarch64)
-set "CARGO_BUILD_TARGET=x86_64-pc-windows-msvc"
+REM Use the host's native target by default. This keeps `cargo build` happy
+REM without requiring an x86_64 cross toolchain on dev hosts. Override
+REM with CARGO_BUILD_TARGET=... in the environment if a specific target is
+REM required.
+if not defined CARGO_BUILD_TARGET (
+    for /f "delims=" %%t in ('rustc -vV ^| findstr /B /C:"host: "') do set "CARGO_BUILD_TARGET=%%t"
+    set "CARGO_BUILD_TARGET=%CARGO_BUILD_TARGET:host: =%"
+)
 
 REM Note: /utf-8 is injected by patches/whisper-rs-sys-0.11.1/build.rs
 REM via config.cflag/cxxflag. Don't set CMAKE_CXX_FLAGS here — it
