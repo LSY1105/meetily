@@ -106,9 +106,12 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   });
 
   // Transcript model configuration state
+  // Default to localWhisper (large-v3-turbo): Parakeet TDT v3 multilingual
+  // does NOT actually support Chinese — only 24 European languages per its
+  // config.json. Whisper large-v3-turbo supports 99+ languages including zh.
   const [transcriptModelConfig, setTranscriptModelConfig] = useState<TranscriptModelProps>({
-    provider: 'parakeet',
-    model: 'parakeet-tdt-0.6b-v3-int8',
+    provider: 'localWhisper',
+    model: 'large-v3-turbo',
     apiKey: null
   });
 
@@ -199,8 +202,8 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         if (config) {
           console.log('[ConfigContext] Loaded saved transcript config:', config);
           setTranscriptModelConfig({
-            provider: config.provider || 'parakeet',
-            model: config.model || 'parakeet-tdt-0.6b-v3-int8',
+            provider: config.provider || 'localWhisper',
+            model: config.model || 'large-v3-turbo',
             apiKey: config.apiKey || null
           });
         }

@@ -632,10 +632,13 @@ pub async fn api_get_transcript_config<R: Runtime>(
             }
         }
         Ok(None) => {
-            log_info!("No transcript config found, returning default.");
+            // Default to localWhisper (large-v3-turbo): Parakeet TDT v3 multilingual
+            // does NOT actually support Chinese — only 24 European languages per
+            // its config.json. Whisper large-v3-turbo supports 99+ languages including zh.
+            log_info!("No transcript config found, returning default (localWhisper).");
             Ok(Some(TranscriptConfig {
-                provider: "parakeet".to_string(),
-                model: crate::config::DEFAULT_PARAKEET_MODEL.to_string(),
+                provider: "localWhisper".to_string(),
+                model: crate::config::DEFAULT_WHISPER_MODEL.to_string(),
                 api_key: None,
             }))
         }
