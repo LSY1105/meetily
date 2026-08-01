@@ -423,7 +423,7 @@ pub async fn generate_summary(
         let content = chat_response
             .content
             .get(0)
-            .ok_or("No content in LLM response")?
+            .ok_or_else(|| LLMError::Other("No content in LLM response".to_string()))?
             .text
             .trim();
         Ok(content.to_string())
@@ -438,7 +438,7 @@ pub async fn generate_summary(
         let content = chat_response
             .choices
             .get(0)
-            .ok_or("No content in LLM response")?
+            .ok_or_else(|| LLMError::Other("No content in LLM response".to_string()))?
             .message
             .content
             .trim();

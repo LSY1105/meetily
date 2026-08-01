@@ -82,6 +82,38 @@ impl TranscriptsRepository {
         Ok(meeting_id)
     }
 
+    /// Replace all transcript segments for an existing meeting atomically.
+    pub async fn replace_meeting_segments(
+        pool: &SqlitePool,
+        meeting_id: &str,
+        transcripts: &[TranscriptSegment],
+    ) -> Result<(), SqlxError> {
+        let mut transaction = pool.begin().await?;
+
+        sqlx::query("DELETE FROM transcripts WHERE meeting_id = ?")
+            .bind(meeting_id)
+            .execute(&mut *transaction)
+            .await?;
+
+        for segment in transcripts {
+            sqlx::query(
+                "INSERT INTO transcripts (id, meeting_id, transcript, timestamp, audio_start_time, audio_end_time, duration)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)",
+            )
+            .bind(format!("transcript-{}", Uuid::new_v4()))
+            .bind(meeting_id)
+            .bind(&segment.text)
+            .bind(&segment.timestamp)
+            .bind(segment.audio_start_time)
+            .bind(segment.audio_end_time)
+            .bind(segment.duration)
+            .execute(&mut *transaction)
+            .await?;
+        }
+
+        transaction.commit().await
+    }
+
     /// Searches for a query string within the transcripts.
     /// It returns a list of matching transcripts with context.
     pub async fn search_transcripts(
