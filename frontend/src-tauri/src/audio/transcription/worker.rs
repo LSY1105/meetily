@@ -87,6 +87,8 @@ pub fn start_transcription_task<R: Runtime>(
             let engine_clone = match &transcription_engine {
                 TranscriptionEngine::Whisper(e) => TranscriptionEngine::Whisper(e.clone()),
                 TranscriptionEngine::Parakeet(e) => TranscriptionEngine::Parakeet(e.clone()),
+                #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
+                TranscriptionEngine::Sherpa(e) => TranscriptionEngine::Sherpa(e.clone()),
                 TranscriptionEngine::Provider(p) => TranscriptionEngine::Provider(p.clone()),
             };
             let app_clone = app.clone();
@@ -166,6 +168,8 @@ pub fn start_transcription_task<R: Runtime>(
                                     let confidence_threshold = match &engine_clone {
                                         TranscriptionEngine::Whisper(_) | TranscriptionEngine::Provider(_) => 0.3,
                                         TranscriptionEngine::Parakeet(_) => 0.0, // Parakeet has no confidence, accept all
+                                        #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
+                                        TranscriptionEngine::Sherpa(_) => 0.0, // Sherpa has no confidence, accept all
                                     };
 
                                     let confidence_str = match confidence_opt {
@@ -546,6 +550,60 @@ async fn transcribe_chunk_with_provider<R: Runtime>(
                         }),
                     );
 
+                    Err(transcription_error)
+                }
+            }
+        }
+        #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
+        TranscriptionEngine::Sherpa(sherpa_engine) => {
+            // Sherpa-onnx is incremental streaming: we feed the chunk and get
+            // back the current best hypothesis. The provider pattern wraps
+            // accept_waveform + endpoint-driven reset, so we just call it.
+            match sherpa_engine
+                .accept_waveform(speech_samples.clone(), 16_000)
+                .await
+            {
+                Ok(result) => {
+                    let cleaned_text = result.text.trim().to_string();
+                    let is_partial = result.is_partial;
+                    if cleaned_text.is_empty() {
+                        return Ok((String::new(), None, is_partial));
+                    }
+
+                    info!(
+                        "Sherpa transcription for chunk {}: '{}' (partial: {}, endpoint: {})",
+                        chunk.chunk_id, cleaned_text, is_partial, result.is_endpoint
+                    );
+
+                    // Commit-and-reset on endpoint so the next utterance
+                    // starts clean. The text we return is the final text for
+                    // this utterance; the worker's `is_partial = false`
+                    // signals that this segment is committed.
+                    if result.is_endpoint {
+                        if let Err(e) = sherpa_engine.reset().await {
+                            warn!(
+                                "sherpa reset after endpoint failed for chunk {}: {}",
+                                chunk.chunk_id, e
+                            );
+                        }
+                    }
+
+                    Ok((cleaned_text, None, is_partial))
+                }
+                Err(e) => {
+                    error!(
+                        "Sherpa transcription failed for chunk {}: {}",
+                        chunk.chunk_id, e
+                    );
+                    let transcription_error = TranscriptionError::EngineFailed(e.to_string());
+                    let _ = app.emit(
+                        "transcription-error",
+                        &serde_json::json!({
+                            "error": transcription_error.to_string(),
+                            "userMessage": format!("Transcription failed: {}", transcription_error),
+                            "actionable": false
+                        }),
+                    );
                     Err(transcription_error)
                 }
             }

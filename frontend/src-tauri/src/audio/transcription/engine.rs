@@ -15,6 +15,10 @@ use tauri::{AppHandle, Manager, Runtime};
 pub enum TranscriptionEngine {
     Whisper(Arc<crate::whisper_engine::WhisperEngine>),  // Direct access (backward compat)
     Parakeet(Arc<crate::parakeet_engine::ParakeetEngine>), // Direct access (backward compat)
+    // Sherpa-onnx streaming engine; only available on targets where
+    // `sherpa_engine` compiles (i.e. not aarch64-pc-windows-msvc).
+    #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
+    Sherpa(Arc<crate::sherpa_engine::SherpaEngine>),
     Provider(Arc<dyn TranscriptionProvider>),  // Trait-based (preferred for new code)
 }
 
@@ -24,6 +28,8 @@ impl TranscriptionEngine {
         match self {
             Self::Whisper(engine) => engine.is_model_loaded().await,
             Self::Parakeet(engine) => engine.is_model_loaded().await,
+            #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
+            Self::Sherpa(engine) => engine.is_model_loaded().await,
             Self::Provider(provider) => provider.is_model_loaded().await,
         }
     }
@@ -33,6 +39,8 @@ impl TranscriptionEngine {
         match self {
             Self::Whisper(engine) => engine.get_current_model().await,
             Self::Parakeet(engine) => engine.get_current_model().await,
+            #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
+            Self::Sherpa(engine) => engine.get_current_model().await,
             Self::Provider(provider) => provider.get_current_model().await,
         }
     }
@@ -42,6 +50,8 @@ impl TranscriptionEngine {
         match self {
             Self::Whisper(_) => "Whisper (direct)",
             Self::Parakeet(_) => "Parakeet (direct)",
+            #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
+            Self::Sherpa(_) => "SherpaOnnx (direct)",
             Self::Provider(provider) => provider.provider_name(),
         }
     }
@@ -135,10 +145,31 @@ pub async fn validate_transcription_model_ready<R: Runtime>(app: &AppHandle<R>) 
                 }
             }
         }
+        #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
+        "sherpa" => {
+            info!("🔍 Validating Sherpa-onnx model...");
+            if let Err(init_error) = crate::sherpa_engine::commands::sherpa_init().await {
+                warn!("❌ Failed to initialize Sherpa engine: {}", init_error);
+                return Err(format!(
+                    "Failed to initialize Sherpa streaming ASR: {}",
+                    init_error
+                ));
+            }
+            match crate::sherpa_engine::commands::sherpa_validate_model_ready_with_config(app).await {
+                Ok(model_name) => {
+                    info!("✅ Sherpa model validation successful: {} is ready", model_name);
+                    Ok(())
+                }
+                Err(e) => {
+                    warn!("❌ Sherpa model validation failed: {}", e);
+                    Err(e)
+                }
+            }
+        }
         other => {
             warn!("❌ Unsupported transcription provider for local recording: {}", other);
             Err(format!(
-                "Provider '{}' is not supported for local transcription. Please select 'localWhisper' or 'parakeet'.",
+                "Provider '{}' is not supported for local transcription. Please select 'localWhisper', 'parakeet', or 'sherpa'.",
                 other
             ))
         }
@@ -210,6 +241,34 @@ pub async fn get_or_init_transcription_engine<R: Runtime>(
                 None => {
                     Err("Parakeet engine not initialized. This should not happen after validation.".to_string())
                 }
+            }
+        }
+        #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
+        "sherpa" => {
+            info!("🛰️ Initializing Sherpa-onnx streaming transcription engine");
+            let engine = {
+                let guard = crate::sherpa_engine::commands::SHERPA_ENGINE
+                    .lock()
+                    .unwrap();
+                guard.as_ref().cloned()
+            };
+            match engine {
+                Some(engine) => {
+                    if engine.is_model_loaded().await {
+                        let model_name = engine
+                            .get_current_model()
+                            .await
+                            .unwrap_or_else(|| "unknown".to_string());
+                        info!("✅ Sherpa model '{}' already loaded", model_name);
+                        Ok(TranscriptionEngine::Sherpa(engine))
+                    } else {
+                        Err("Sherpa engine initialized but no model loaded. This should not happen after validation.".to_string())
+                    }
+                }
+                None => Err(
+                    "Sherpa engine not initialized. This should not happen after validation."
+                        .to_string(),
+                ),
             }
         }
         "localWhisper" | _ => {

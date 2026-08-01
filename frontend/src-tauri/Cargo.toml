@@ -106,6 +106,16 @@ silero_rs = { git = "https://github.com/emotechlab/silero-rs", rev = "26a6460", 
 ort = { version = "2.0.0-rc.10" }  # ONNX Runtime for Parakeet models
 thiserror = "2.0.16"                # Error handling for Parakeet
 
+# sherpa-onnx (streaming Chinese/English ASR via Zipformer transducer).
+# Static link keeps the binary self-contained; on Windows MSVC this pulls in
+# a pre-built onnxruntime via the bundled C library. NOTE: upstream
+# sherpa-onnx-sys does not yet ship prebuilt libs for aarch64-pc-windows-msvc,
+# so the dep is restricted to x86_64 Windows / macOS / Linux. Windows-on-ARM
+# dev hosts will compile without the sherpa engine; users on ARM Windows
+# can still use whisper and parakeet. See the `sherpa_engine` module.
+bzip2 = "0.4"                       # bz2 decoder for sherpa model archives
+tar = "0.4"                         # tar extractor for sherpa model archives
+
 # Async
 tokio = { version = "1.32.0", features = ["full", "tracing"] }
 tokio-util = "0.7"  # Utilities for tokio including CancellationToken
@@ -178,6 +188,7 @@ futures-channel = "0.3.31"
 # PERFORMANCE: Enable Metal GPU + CoreML acceleration automatically on macOS
 # CoreML provides additional acceleration for Apple Silicon chips
 whisper-rs = { version = "0.13.2", features = ["raw-api", "metal", "coreml"] }
+sherpa-onnx = { version = "1.13.4", default-features = false, features = ["static"] }
 
 # Windows-specific dependencies
 # Default: CPU-only build (no BLAS)
@@ -188,6 +199,11 @@ whisper-rs = { version = "0.13.2", features = ["raw-api", "metal", "coreml"] }
 [target.'cfg(target_os = "windows")'.dependencies]
 whisper-rs = { version = "0.13.2", features = ["raw-api"] }
 futures-channel = "0.3.31"
+# sherpa-onnx upstream prebuilts only exist for win-x64; gate to x86_64 so
+# aarch64-pc-windows-msvc dev hosts can still build (without the sherpa
+# engine, falling back to whisper/parakeet at runtime).
+[target.'cfg(all(target_os = "windows", target_arch = "x86_64"))'.dependencies]
+sherpa-onnx = { version = "1.13.4", default-features = false, features = ["static"] }
 
 # Linux-specific dependencies
 # Default: CPU-only build (no BLAS)
@@ -199,6 +215,7 @@ futures-channel = "0.3.31"
 [target.'cfg(target_os = "linux")'.dependencies]
 whisper-rs = { version = "0.13.2", features = ["raw-api"] }
 futures-channel = "0.3.31"
+sherpa-onnx = { version = "1.13.4", default-features = false, features = ["static"] }
 
 [dev-dependencies]
 tempfile = "3.3.0"
