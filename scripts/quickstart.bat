@@ -62,8 +62,7 @@ REM without requiring an x86_64 cross toolchain on dev hosts. Override
 REM with CARGO_BUILD_TARGET=... in the environment if a specific target is
 REM required.
 if not defined CARGO_BUILD_TARGET (
-    for /f "delims=" %%t in ('rustc -vV ^| findstr /B /C:"host: "') do set "CARGO_BUILD_TARGET=%%t"
-    set "CARGO_BUILD_TARGET=%CARGO_BUILD_TARGET:host: =%"
+    for /f "tokens=2 delims=: " %%t in ('rustc -vV ^| findstr /B /C:"host:"') do set "CARGO_BUILD_TARGET=%%t"
 )
 
 REM Note: /utf-8 is injected by patches/whisper-rs-sys-0.11.1/build.rs
