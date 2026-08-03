@@ -57,12 +57,19 @@ set "PNPM=%LocalAppData%\pnpm\pnpm.exe"
 call :log "using pnpm: %PNPM%"
 
 REM Force x86_64 target (matches project / CI; host rustup default is aarch64)
-REM Use the host's native target by default. This keeps `cargo build` happy
-REM without requiring an x86_64 cross toolchain on dev hosts. Override
-REM with CARGO_BUILD_TARGET=... in the environment if a specific target is
-REM required.
+REM Use the host's native target by default. Override with
+REM CARGO_BUILD_TARGET=... if a specific target is needed. **Note:**
+REM llama.cpp's CMake refuses MSVC on ARM (cmake 4 incompatibility),
+REM so we explicitly force x86_64-pc-windows-msvc here — CI builds for
+REM the same target and the x86_64 clang-cl toolchain is available even
+REM on aarch64-pc-windows-msvc hosts (cross-compile). Use
+REM `CARGO_BUILD_TARGET=aarch64-pc-windows-msvc` to opt into native ARM
+REM once cmake/MSVC compatibility for ARM is fixed upstream.
 if not defined CARGO_BUILD_TARGET (
     for /f "tokens=2 delims=: " %%t in ('rustc -vV ^| findstr /B /C:"host:"') do set "CARGO_BUILD_TARGET=%%t"
+    if /i not "%CARGO_BUILD_TARGET%"=="aarch64-pc-windows-msvc" (
+        set "CARGO_BUILD_TARGET=x86_64-pc-windows-msvc"
+    )
 )
 
 REM Note: /utf-8 is injected by patches/whisper-rs-sys-0.11.1/build.rs
