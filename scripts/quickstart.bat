@@ -91,16 +91,17 @@ if not exist "%FRONTEND%\node_modules" (
 
 REM Build llama-helper sidecar (matches what CI does in build-windows.yml).
 REM Tauri fails to launch without binaries\llama-helper-<target>.exe.
-if not exist "%FRONTEND_SRC_TAURI%\binaries\llama-helper-x86_64-pc-windows-msvc.exe" (
-  call :log "building llama-helper sidecar (release, CPU-only)"
-  cargo build --release -p llama-helper --target x86_64-pc-windows-msvc 1>>"%LOG%" 2>&1
+REM Use the same target the dev build uses (set above from rustc -vV).
+if not exist "%FRONTEND_SRC_TAURI%\binaries\llama-helper-%CARGO_BUILD_TARGET%.exe" (
+  call :log "building llama-helper sidecar (release, CPU-only, target=%CARGO_BUILD_TARGET%)"
+  cargo build --release -p llama-helper --target %CARGO_BUILD_TARGET% 1>>"%LOG%" 2>&1
   if errorlevel 1 (
     call :err "llama-helper build failed (see %LOG%)"
     call :pause_keep_open
     exit /b 1
   )
   if not exist "%FRONTEND_SRC_TAURI%\binaries" mkdir "%FRONTEND_SRC_TAURI%\binaries" 1>>"%LOG%" 2>&1
-  copy /Y "%CD%\target\x86_64-pc-windows-msvc\release\llama-helper.exe" "%FRONTEND_SRC_TAURI%\binaries\llama-helper-x86_64-pc-windows-msvc.exe" 1>>"%LOG%" 2>&1
+  copy /Y "%CD%\target\%CARGO_BUILD_TARGET%\release\llama-helper.exe" "%FRONTEND_SRC_TAURI%\binaries\llama-helper-%CARGO_BUILD_TARGET%.exe" 1>>"%LOG%" 2>&1
   if errorlevel 1 (
     call :err "copying llama-helper.exe to binaries\ failed (see %LOG%)"
     call :pause_keep_open
@@ -108,7 +109,7 @@ if not exist "%FRONTEND_SRC_TAURI%\binaries\llama-helper-x86_64-pc-windows-msvc.
   )
   call :log "llama-helper sidecar ready"
 ) else (
-  call :log "binaries\llama-helper-x86_64-pc-windows-msvc.exe present; skipping sidecar build"
+  call :log "binaries\llama-helper-%CARGO_BUILD_TARGET%.exe present; skipping sidecar build"
 )
 
 call :log "starting pnpm -C %FRONTEND% tauri:dev"
