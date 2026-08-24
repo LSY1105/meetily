@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { listen } from '@/lib/transport';
 import { toast } from 'sonner';
 import { X, Download, Check, Loader2, ArrowBigDownDash } from 'lucide-react';
 import { getDownloadTotalMb } from '@/lib/onboarding-summary-model';
+import { useModelDownloadEvents } from '@/hooks/useModelDownloadEvents';
 
 interface DownloadProgress {
   modelName: string;
@@ -219,134 +219,41 @@ export function useDownloadProgressToast() {
     });
   }, [downloads, dismissedModels, showDownloadToast]);
 
-  // Listen to Parakeet download events
-  useEffect(() => {
-    const unlistenProgress = listen<{
-      modelName: string;
-      progress: number;
-      downloaded_mb?: number;
-      total_mb?: number;
-      speed_mbps?: number;
-      status?: string;
-    }>('parakeet-model-download-progress', (event) => {
-      const { modelName, progress, downloaded_mb, total_mb, speed_mbps, status } = event.payload;
+  // Download lifecycle events across engines, normalized by the shared hook.
+  useModelDownloadEvents(['parakeet', 'builtin'], (event) => {
+    const { engine, modelName, phase, progress, downloadedMb, totalMb, speedMbps, error } = event;
+    const isParakeet = engine === 'parakeet';
 
-      const downloadData: DownloadProgress = {
-        modelName,
-        displayName: 'Transcription Model (Parakeet)',
-        progress,
-        downloadedMb: downloaded_mb ?? 0,
-        totalMb: total_mb ?? 670,
-        speedMbps: speed_mbps ?? 0,
-        status: status === 'cancelled'
-          ? 'cancelled'
-          : status === 'completed' || progress >= 100
+    const downloadData: DownloadProgress = {
+      modelName,
+      displayName: isParakeet ? 'Transcription Model (Parakeet)' : `Summary Model (${modelName})`,
+      progress: phase === 'complete' ? 100 : progress,
+      downloadedMb: phase === 'complete' && isParakeet ? 670 : downloadedMb,
+      totalMb: isParakeet ? totalMb || 670 : getDownloadTotalMb(totalMb, modelName),
+      speedMbps,
+      unitLabel: isParakeet ? undefined : 'MiB',
+      status:
+        phase === 'complete'
           ? 'completed'
-          : 'downloading',
-      };
-
-      updateDownload(modelName, downloadData);
-
-      // Clean up cancelled downloads after delay to auto-dismiss toast
-      if (downloadData.status === 'cancelled') {
-        cleanupDownload(modelName, 6000); // 5s toast + 1s buffer
-      }
-      // Removed direct showDownloadToast call here, handled by effect
-    });
-
-    const unlistenComplete = listen<{ modelName: string }>(
-      'parakeet-model-download-complete',
-      (event) => {
-        const { modelName } = event.payload;
-        const downloadData: DownloadProgress = {
-          modelName,
-          displayName: 'Transcription Model (Parakeet)',
-          progress: 100,
-          downloadedMb: 670,
-          totalMb: 670,
-          speedMbps: 0,
-          status: 'completed',
-        };
-        updateDownload(modelName, downloadData);
-        // Clean up after 4 seconds (completion toast duration is 3s + 1s buffer)
-        cleanupDownload(modelName, 4000);
-      }
-    );
-
-    const unlistenError = listen<{ modelName: string; error: string }>(
-      'parakeet-model-download-error',
-      (event) => {
-        const { modelName, error } = event.payload;
-        const downloadData: DownloadProgress = {
-          modelName,
-          displayName: 'Transcription Model (Parakeet)',
-          progress: 0,
-          downloadedMb: 0,
-          totalMb: 670,
-          speedMbps: 0,
-          status: 'error',
-          error: categorizeError(error),
-        };
-        updateDownload(modelName, downloadData);
-        // Clean up after 11 seconds (error toast duration is 10s + 1s buffer)
-        cleanupDownload(modelName, 11000);
-      }
-    );
-
-    return () => {
-      unlistenProgress.then((fn) => fn());
-      unlistenComplete.then((fn) => fn());
-      unlistenError.then((fn) => fn());
-    };
-  }, [updateDownload, cleanupDownload]);
-
-  // Listen to Built-in AI summary model download events
-  useEffect(() => {
-    const unlisten = listen<{
-      model: string;
-      progress: number;
-      downloaded_mb?: number;
-      total_mb?: number;
-      speed_mbps?: number;
-      status: string;
-      error?: string;
-    }>('builtin-ai-download-progress', (event) => {
-      const { model, progress, downloaded_mb, total_mb, speed_mbps, status, error } = event.payload;
-
-      const downloadData: DownloadProgress = {
-        modelName: model,
-        displayName: `Summary Model (${model})`,
-        progress: progress ?? 0,
-        downloadedMb: downloaded_mb ?? 0,
-        totalMb: getDownloadTotalMb(total_mb, model),
-        speedMbps: speed_mbps ?? 0,
-        unitLabel: 'MiB',
-        status: status === 'completed' || progress >= 100
-          ? 'completed'
-          : status === 'cancelled'
-            ? 'cancelled'
-            : status === 'error'
-              ? 'error'
+          : phase === 'error'
+            ? 'error'
+            : phase === 'cancelled'
+              ? 'cancelled'
               : 'downloading',
-        error: status === 'error' ? categorizeError(error || 'Download failed') : undefined,
-      };
-
-      updateDownload(model, downloadData);
-
-      // Clean up finished downloads after delay to prevent endless toasts
-      if (downloadData.status === 'completed') {
-        cleanupDownload(model, 4000);  // 3s toast + 1s buffer
-      } else if (downloadData.status === 'error') {
-        cleanupDownload(model, 11000); // 10s toast + 1s buffer
-      } else if (downloadData.status === 'cancelled') {
-        cleanupDownload(model, 6000);  // 5s toast + 1s buffer
-      }
-    });
-
-    return () => {
-      unlisten.then((fn) => fn());
+      error: phase === 'error' ? categorizeError(error || 'Download failed') : undefined,
     };
-  }, [updateDownload, cleanupDownload]);
+
+    updateDownload(modelName, downloadData);
+
+    // Clean up finished downloads after delay to prevent endless toasts
+    if (downloadData.status === 'completed') {
+      cleanupDownload(modelName, 4000);  // 3s toast + 1s buffer
+    } else if (downloadData.status === 'error') {
+      cleanupDownload(modelName, 11000); // 10s toast + 1s buffer
+    } else if (downloadData.status === 'cancelled') {
+      cleanupDownload(modelName, 6000);  // 5s toast + 1s buffer
+    }
+  });
 
   return { downloads };
 }

@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@/lib/transport';
 import { Mic, Sparkles, Check, Loader2, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { OnboardingContainer } from '../OnboardingContainer';
@@ -8,6 +7,7 @@ import { useOnboarding } from '@/contexts/OnboardingContext';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getSummaryModelSizeLabel, getSummaryModelSizeMb } from '@/lib/onboarding-summary-model';
+import { useModelDownloadEvents } from '@/hooks/useModelDownloadEvents';
 
 const PARAKEET_MODEL = 'parakeet-tdt-0.6b-v3-int8';
 
@@ -193,106 +193,67 @@ export function DownloadProgressStep({ onComplete }: { onComplete: () => void })
     startSummaryDownload();
   }, [selectedSummaryModel]);
 
-  // Listen to Parakeet download progress
-  useEffect(() => {
-    const unlistenProgress = listen<{
-      modelName: string;
-      progress: number;
-      downloaded_mb?: number;
-      total_mb?: number;
-      speed_mbps?: number;
-      status?: string;
-    }>('parakeet-model-download-progress', (event) => {
-      const { modelName, progress, downloaded_mb, total_mb, speed_mbps, status } = event.payload;
-      if (modelName === PARAKEET_MODEL) {
+  // Download lifecycle events across engines, normalized by the shared hook.
+  // Handler identity is kept fresh by the hook, so selectedSummaryModel is
+  // always current without resubscribing.
+  useModelDownloadEvents(['parakeet', 'builtin'], (event) => {
+    const { engine, modelName, phase, progress, downloadedMb, totalMb, speedMbps, error } = event;
+
+    if (engine === 'parakeet') {
+      if (modelName !== PARAKEET_MODEL || phase === 'cancelled') return;
+
+      if (phase === 'error') {
         setParakeetState((prev) => ({
           ...prev,
-          status: status === 'completed' ? 'completed' : 'downloading',
-          progress,
-          downloadedMb: downloaded_mb ?? prev.downloadedMb,
-          totalMb: total_mb ?? prev.totalMb,
-          speedMbps: speed_mbps ?? prev.speedMbps,
+          status: 'error',
+          error,
         }));
-
-        if (status === 'completed' || progress >= 100) {
-          setParakeetDownloaded(true);
-        }
+        return;
       }
-    });
 
-    const unlistenComplete = listen<{ modelName: string }>(
-      'parakeet-model-download-complete',
-      (event) => {
-        if (event.payload.modelName === PARAKEET_MODEL) {
-          setParakeetState((prev) => ({ ...prev, status: 'completed', progress: 100 }));
-          setParakeetDownloaded(true);
-        }
+      const completed = phase === 'complete';
+      setParakeetState((prev) => ({
+        ...prev,
+        status: completed ? 'completed' : 'downloading',
+        progress: completed ? 100 : progress,
+        downloadedMb: downloadedMb ?? prev.downloadedMb,
+        totalMb: totalMb ?? prev.totalMb,
+        speedMbps: speedMbps ?? prev.speedMbps,
+      }));
+
+      if (completed) {
+        setParakeetDownloaded(true);
       }
-    );
+      return;
+    }
 
-    const unlistenError = listen<{ modelName: string; error: string }>(
-      'parakeet-model-download-error',
-      (event) => {
-        if (event.payload.modelName === PARAKEET_MODEL) {
-          setParakeetState((prev) => ({
-            ...prev,
-            status: 'error',
-            error: event.payload.error,
-          }));
-        }
-      }
-    );
+    // builtin summary model
+    // Accept the event if it matches the selected model, or if no
+    // selected model is set yet (event arrives before the UI hint
+    // is wired up). The event's model field is authoritative.
+    const matchesSelected = selectedSummaryModel
+      ? modelName === selectedSummaryModel
+      : true;
+    if (!matchesSelected) return;
 
-    return () => {
-      unlistenProgress.then((fn) => fn());
-      unlistenComplete.then((fn) => fn());
-      unlistenError.then((fn) => fn());
-    };
-  }, []);
+    setSummaryState((prev) => ({
+      ...prev,
+      status: phase === 'complete'
+        ? 'completed'
+        : phase === 'error'
+        ? 'error'
+        : 'downloading',
+      progress,
+      downloadedMb: downloadedMb ?? prev.downloadedMb,
+      totalMb: (totalMb ?? prev.totalMb) || getSummaryModelSizeMb(modelName),
+      speedMbps: speedMbps ?? prev.speedMbps,
+      error: phase === 'error' ? error : undefined,
+    }));
 
-  // Listen to Summary Model download progress (always downloading for builtin-ai)
-  useEffect(() => {
-    const unlisten = listen<{
-      model: string;
-      progress: number;
-      downloaded_mb?: number;
-      total_mb?: number;
-      speed_mbps?: number;
-      status: string;
-      error?: string;
-    }>('builtin-ai-download-progress', (event) => {
-      const { model, progress, downloaded_mb, total_mb, speed_mbps, status, error } = event.payload;
-      // Accept the event if it matches the selected model, or if no
-      // selected model is set yet (event arrives before the UI hint
-      // is wired up). The event's `model` field is authoritative.
-      const matchesSelected = selectedSummaryModel
-        ? model === selectedSummaryModel
-        : true;
-      if (matchesSelected) {
-        setSummaryState((prev) => ({
-          ...prev,
-          status: status === 'completed'
-            ? 'completed'
-            : status === 'error'
-            ? 'error'
-            : 'downloading',
-          progress,
-          downloadedMb: downloaded_mb ?? prev.downloadedMb,
-          totalMb: (total_mb ?? prev.totalMb) || getSummaryModelSizeMb(model),
-          speedMbps: speed_mbps ?? prev.speedMbps,
-          error: status === 'error' ? error : undefined,
-        }));
-
-        if (status === 'completed' || progress >= 100) {
-          setSummaryModelDownloaded(true);
-        }
-      }
-    });
-
-    return () => {
-      unlisten.then((fn) => fn());
-    };
-  }, [selectedSummaryModel]);
+    if (phase === 'complete') {
+      setSummaryModelDownloaded(true);
+    }
+  });
 
   useEffect(() => {
     const modelForSize = selectedSummaryModel || recommendedSummaryModel;
