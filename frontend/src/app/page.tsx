@@ -14,7 +14,6 @@ import Analytics from '@/lib/analytics';
 import { SettingsModals } from './_components/SettingsModal';
 import { TranscriptPanel } from './_components/TranscriptPanel';
 import { useModalState } from '@/hooks/useModalState';
-import { useRecordingStateSync } from '@/hooks/useRecordingStateSync';
 import { useRecordingStart } from '@/hooks/useRecordingStart';
 import { useRecordingStop } from '@/hooks/useRecordingStop';
 import { useTranscriptRecovery } from '@/hooks/useTranscriptRecovery';
@@ -25,7 +24,7 @@ import { useRouter } from 'next/navigation';
 
 export default function Home() {
   // Local page state (not moved to contexts)
-  const [isRecording, setIsRecordingState] = useState(false);
+  const [isRecordingDisabled, setIsRecordingDisabled] = useState(false);
   const [barHeights, setBarHeights] = useState(['58%', '76%', '58%']);
   const [showRecoveryDialog, setShowRecoveryDialog] = useState(false);
 
@@ -41,12 +40,10 @@ export default function Home() {
   const { hasMicrophone } = usePermissionCheck();
   const { setIsMeetingActive, isCollapsed: sidebarCollapsed, refetchMeetings } = useSidebar();
   const { modals, messages, showModal, hideModal } = useModalState(transcriptModelConfig);
-  const { isRecordingDisabled, setIsRecordingDisabled } = useRecordingStateSync(isRecording, setIsRecordingState, setIsMeetingActive);
-  const { handleRecordingStart } = useRecordingStart(isRecording, setIsRecordingState, showModal);
+  const { handleRecordingStart } = useRecordingStart(showModal);
 
   // Get handleRecordingStop function and setIsStopping (state comes from global context)
   const { handleRecordingStop, setIsStopping } = useRecordingStop(
-    setIsRecordingState,
     setIsRecordingDisabled
   );
 
@@ -223,7 +220,7 @@ export default function Home() {
         />
 
         {/* Recording controls - only show when permissions are granted or already recording and not showing status messages */}
-        {(hasMicrophone || isRecording) &&
+        {(hasMicrophone || recordingState.isRecording) &&
           status !== RecordingStatus.STOPPING &&
           status !== RecordingStatus.PROCESSING_TRANSCRIPTS &&
           status !== RecordingStatus.SAVING && (

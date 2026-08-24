@@ -40,6 +40,13 @@ interface RecordingStateContextType extends RecordingState {
   // NEW: Setters for status management
   setStatus: (status: RecordingStatus, message?: string) => void;
 
+  /**
+   * Optimistic isRecording override. Backend events and polling remain the
+   * source of truth; this exists for the short window between a successful
+   * start/stop invoke and the corresponding backend event arriving.
+   */
+  setIsRecording: (value: boolean) => void;
+
   // Computed helpers (derived from status)
   isStopping: boolean;
   isProcessing: boolean;
@@ -79,6 +86,14 @@ export function RecordingStateProvider({ children }: { children: React.ReactNode
       statusMessage: message,
     }));
   }, [state.status, state.isRecording, state.isPaused]);
+
+  const setIsRecording = useCallback((value: boolean) => {
+    setState(prev => ({
+      ...prev,
+      isRecording: value,
+      isActive: value ? !prev.isPaused : false,
+    }));
+  }, []);
 
   /**
    * Sync recording state with backend
@@ -229,10 +244,11 @@ export function RecordingStateProvider({ children }: { children: React.ReactNode
   const contextValue = useMemo(() => ({
     ...state,
     setStatus,
+    setIsRecording,
     isStopping: state.status === RecordingStatus.STOPPING,
     isProcessing: state.status === RecordingStatus.PROCESSING_TRANSCRIPTS,
     isSaving: state.status === RecordingStatus.SAVING,
-  }), [state, setStatus]);
+  }), [state, setStatus, setIsRecording]);
 
   return (
     <RecordingStateContext.Provider value={contextValue}>

@@ -28,8 +28,6 @@ type StartSource = 'home_page' | 'sidebar_auto' | 'sidebar_direct';
  * differ only in their guards and error presentation.
  */
 export function useRecordingStart(
-  isRecording: boolean,
-  setIsRecording: (value: boolean) => void,
   showModal?: (name: 'modelSelector', message?: string) => void
 ): UseRecordingStartReturn {
   const [isAutoStarting, setIsAutoStarting] = useState(false);
@@ -37,7 +35,7 @@ export function useRecordingStart(
   const { clearTranscripts, setMeetingTitle } = useTranscripts();
   const { setIsMeetingActive } = useSidebar();
   const { selectedDevices } = useConfig();
-  const { setStatus } = useRecordingState();
+  const { isRecording, setStatus, setIsRecording } = useRecordingState();
 
   // Generate meeting title with timestamp
   const generateMeetingTitle = useCallback(() => {

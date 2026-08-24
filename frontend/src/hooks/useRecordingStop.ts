@@ -39,11 +39,11 @@ interface UseRecordingStopReturn {
  * - Window exposure for Rust callbacks
  */
 export function useRecordingStop(
-  setIsRecording: (value: boolean) => void,
   setIsRecordingDisabled: (value: boolean) => void
 ): UseRecordingStopReturn {
   // USE global state instead
   const recordingState = useRecordingState();
+  const { setIsRecording } = recordingState;
   const tSummary = useTranslations('summary');
   const {
     status,
