@@ -23,6 +23,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { MeetingMetadata, StoredTranscript } from '@/services/indexedDBService';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 interface TranscriptRecoveryProps {
   isOpen: boolean;
@@ -91,7 +92,7 @@ export function TranscriptRecovery({
       onClose();
     } catch (error) {
       console.error('Recovery failed:', error);
-      alert(t('recovery.alert_recover_failed'));
+      toast.error(t('recovery.alert_recover_failed'));
     } finally {
       setIsRecovering(false);
     }
@@ -111,7 +112,7 @@ export function TranscriptRecovery({
       setPreviewTranscripts([]);
     } catch (error) {
       console.error('Delete failed:', error);
-      alert(t('recovery.alert_delete_failed'));
+      toast.error(t('recovery.alert_delete_failed'));
     } finally {
       setIsDeleting(false);
     }

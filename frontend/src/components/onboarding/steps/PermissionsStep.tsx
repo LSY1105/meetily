@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { OnboardingContainer } from '../OnboardingContainer';
 import { PermissionRow } from '../shared';
 import { useOnboarding } from '@/contexts/OnboardingContext';
+import { toast } from 'sonner';
 
 export function PermissionsStep({ onComplete }: { onComplete: () => void }) {
   const { setPermissionStatus, setPermissionsSkipped, permissions, completeOnboarding } = useOnboarding();
@@ -32,7 +33,7 @@ export function PermissionsStep({ onComplete }: { onComplete: () => void }) {
       try {
         await invoke('open_system_settings');
       } catch {
-        alert('Please enable microphone access in System Preferences > Security & Privacy > Microphone');
+        toast.info('Please enable microphone access in System Preferences > Security & Privacy > Microphone');
       }
       return;
     }
@@ -64,7 +65,7 @@ export function PermissionsStep({ onComplete }: { onComplete: () => void }) {
       try {
         await invoke('open_system_settings');
       } catch {
-        alert('Please enable Audio Capture in System Settings → Privacy & Security → Audio Capture');
+        toast.info('Please enable Audio Capture in System Settings → Privacy & Security → Audio Capture');
       }
       return;
     }

@@ -11,6 +11,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import Analytics from '@/lib/analytics';
 import { useTranslations } from "next-intl";
 import { useRecordingState } from '@/contexts/RecordingStateContext';
+import { toast } from 'sonner';
 
 interface RecordingControlsProps {
   isRecording: boolean;
@@ -79,7 +80,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
         console.log('Tauri is initialized and ready, is_recording result:', result);
       } catch (error) {
         console.error('Tauri initialization error:', error);
-        alert(t('errors.init_failed'));
+        toast.error(t('errors.init_failed'));
       }
     };
     checkTauri();
@@ -241,7 +242,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
       console.log('Recording paused successfully');
     } catch (error) {
       console.error('Failed to pause recording:', error);
-      alert(t('errors.pause_failed'));
+      toast.error(t('errors.pause_failed'));
     } finally {
       setIsPausing(false);
     }
@@ -259,7 +260,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
       console.log('Recording resumed successfully');
     } catch (error) {
       console.error('Failed to resume recording:', error);
-      alert(t('errors.resume_failed'));
+      toast.error(t('errors.resume_failed'));
     } finally {
       setIsResuming(false);
     }
