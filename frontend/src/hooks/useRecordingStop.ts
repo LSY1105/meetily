@@ -301,9 +301,6 @@ export function useRecordingStop(
           // Clean up session storage
           sessionStorage.removeItem('last_recording_folder_path');
           sessionStorage.removeItem('last_recording_meeting_name');
-          // Clean up IndexedDB meeting ID (redundant with markMeetingAsSaved cleanup, but ensures cleanup)
-          sessionStorage.removeItem('indexeddb_current_meeting_id');
-
           // Refetch meetings and set current meeting
           await refetchMeetings();
 
