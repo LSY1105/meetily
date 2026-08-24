@@ -6,6 +6,8 @@
   "scripts": {
     "build": "next build",
     "check:i18n": "tsx scripts/check-i18n.ts",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
     "dev": "next dev -p 3118",
     "export": "next export",
     "start": "next start -p 3118",
@@ -102,6 +104,8 @@
     "@vitest/ui": "^3.2.7",
     "autoprefixer": "^10.0.1",
     "concurrently": "^8.2.2",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "14.2.25",
     "jsdom": "^29.1.1",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",

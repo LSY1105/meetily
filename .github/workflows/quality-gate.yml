@@ -1,0 +1,73 @@
+name: quality-gate
+
+on:
+  push:
+    branches:
+      - main
+      - devtest
+  pull_request:
+    branches: [main, devtest]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  frontend:
+    name: Frontend (typecheck + lint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: frontend
+
+      - name: Typecheck
+        run: pnpm run typecheck
+        working-directory: frontend
+
+      - name: Lint (errors block; console warnings are baseline debt)
+        run: pnpm exec next lint -- --quiet
+        working-directory: frontend
+
+      - name: i18n key parity
+        run: pnpm run check:i18n
+        working-directory: frontend
+
+  rust:
+    name: Rust (clippy + tests)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+
+      - name: Clippy (errors are blocking; warnings are baseline debt)
+        run: cargo clippy --quiet
+        working-directory: frontend/src-tauri
+
+      - name: Tests
+        run: cargo test --quiet
+        working-directory: frontend/src-tauri
