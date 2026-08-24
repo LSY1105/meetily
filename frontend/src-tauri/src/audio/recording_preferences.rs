@@ -114,7 +114,7 @@ pub async fn load_recording_preferences<R: Runtime>(
                 #[cfg(target_os = "macos")]
                 {
                     let backend = crate::audio::capture::get_current_backend();
-                    p.system_audio_backend = Some(backend.to_string());
+                    p.system_audio_backend = Some(backend.as_str().to_string());
                 }
                 p
             }
@@ -278,7 +278,7 @@ pub async fn get_current_audio_backend() -> Result<String, String> {
     #[cfg(target_os = "macos")]
     {
         let backend = crate::audio::capture::get_current_backend();
-        Ok(backend.to_string())
+        Ok(backend.as_str().to_string())
     }
 
     #[cfg(not(target_os = "macos"))]

@@ -483,7 +483,17 @@ mod tests {
             3840,
             48000,
         );
-        assert_eq!(timeout, Duration::from_millis(160));
+        // 80ms base * 2 headroom = 160ms (allow sub-nanosecond float drift)
+        let drift = if timeout > Duration::from_millis(160) {
+            timeout - Duration::from_millis(160)
+        } else {
+            Duration::from_millis(160) - timeout
+        };
+        assert!(
+            drift < Duration::from_micros(10),
+            "unexpected timeout: {:?}",
+            timeout
+        );
     }
 
     #[test]
