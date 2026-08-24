@@ -82,3 +82,11 @@ quickstart.start
 __pycache__/
 *.pyc
 *.pyo
+
+# Local analysis artifacts / backups
+analysis_outputs/
+graphify-out/
+原代码/
+review_results.json
+code_review_report.md
+frontend/out/
