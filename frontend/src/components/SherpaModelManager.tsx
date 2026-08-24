@@ -19,6 +19,7 @@ import { Loader2, Download, CheckCircle2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { SherpaAPI, type SherpaModelInfo } from '@/lib/sherpa';
 import { getSherpaModelDisplayName } from '@/lib/sherpa';
+import { useModelDownloadEvents } from '@/hooks/useModelDownloadEvents';
 
 interface SherpaModelManagerProps {
   selectedModel?: string;
@@ -86,82 +87,61 @@ export function SherpaModelManager({
     initializeModels();
   }, [initialized]);
 
-  // Wire up download progress events
-  useEffect(() => {
-    let unlistenProgress: (() => void) | null = null;
-    let unlistenComplete: (() => void) | null = null;
-    let unlistenError: (() => void) | null = null;
-    let unlistenLoaded: (() => void) | null = null;
-    const setupListeners = async () => {
-      unlistenProgress = await listen<{ modelName: string; downloaded_bytes: number; total_bytes: number; progress: number }>(
-        'sherpa-model-download-progress',
-        (event) => {
-          const { modelName, progress } = event.payload;
-          setDownloadProgress((prev) => {
-            const next = new Map(prev);
-            next.set(modelName, progress);
-            return next;
-          });
-        },
-      );
-      unlistenComplete = await listen<{ modelName: string }>(
-        'sherpa-model-download-complete',
-        async () => {
-          // ponytail: refresh catalog so the button label flips from
-          // "Download" to "Load" once extraction succeeds. We don't know
-          // which model finished; the next paint will reflect status anyway.
-          // If extract failed and the backend cleaned the target dir, the
-          // status flips to Missing and the Download button reappears.
-          const modelList = await SherpaAPI.getAvailableModels();
-          setModels(modelList);
-          setDownloadProgress((prev) => {
-            const next = new Map(prev);
-            for (const k of [...next.keys()]) next.delete(k);
-            return next;
-          });
-        },
-      );
+  // Download lifecycle events (normalized across engines by the shared hook).
+  useModelDownloadEvents('sherpa', (event) => {
+    const { modelName, phase, progress } = event;
+
+    if (phase === 'progress') {
+      setDownloadProgress((prev) => {
+        const next = new Map(prev);
+        next.set(modelName, progress);
+        return next;
+      });
+      return;
+    }
+
+    if (phase === 'complete') {
+      // ponytail: refresh catalog so the button label flips from
+      // "Download" to "Load" once extraction succeeds.
+      void SherpaAPI.getAvailableModels().then(setModels);
+      setDownloadProgress(() => new Map());
+      return;
+    }
+
+    if (phase === 'error') {
       // ponytail: also surface backend-side extract errors so the
       // model card can flip back from "Downloading…" to "Missing"
       // with a toast instead of silently staying stuck at 100%.
-      unlistenError = await listen<{ modelName: string; error: string }>(
-        'sherpa-model-download-error',
-        (event) => {
-          toast.error('Sherpa download failed', {
-            description: event.payload.error,
-            duration: 8000,
-          });
-          setDownloadProgress((prev) => {
-            const next = new Map(prev);
-            for (const k of [...next.keys()]) next.delete(k);
-            return next;
-          });
-          SherpaAPI.getAvailableModels().then(setModels).catch(() => {});
-        },
-      );
-    // ponytail: refresh the punctuator badge whenever an ASR
-      // model finishes loading — that's when `engine.rs::load_model`
-      // attaches the punctuator to the engine (see the
-      // OfflinePunctuation::create block at the tail of load_model).
-      // The Punct-only click goes through `sherpa_load_model` too,
-      // so this catches both code paths.
-      unlistenLoaded = await listen<{ modelName: string }>(
-        'sherpa-model-loading-completed',
-        async () => {
-          try {
-            setPunctuatorLoaded(await SherpaAPI.isPunctuatorLoaded());
-          } catch {
-            // engine not ready — keep whatever value we had
-          }
-        },
-      );
-    };
-    setupListeners();
+      toast.error('Sherpa download failed', {
+        description: event.error,
+        duration: 8000,
+      });
+      setDownloadProgress(() => new Map());
+      SherpaAPI.getAvailableModels().then(setModels).catch(() => {});
+    }
+    // phase === 'cancelled': progress entry is dropped on the next
+    // catalog refresh; nothing else to do here.
+  });
+
+  // ponytail: refresh the punctuator badge whenever an ASR
+  // model finishes loading — that's when `engine.rs::load_model`
+  // attaches the punctuator to the engine (see the
+  // OfflinePunctuation::create block at the tail of load_model).
+  // The Punct-only click goes through `sherpa_load_model` too,
+  // so this catches both code paths.
+  useEffect(() => {
+    const unlistenLoaded = listen<{ modelName: string }>(
+      'sherpa-model-loading-completed',
+      async () => {
+        try {
+          setPunctuatorLoaded(await SherpaAPI.isPunctuatorLoaded());
+        } catch {
+          // engine not ready — keep whatever value we had
+        }
+      },
+    );
     return () => {
-      unlistenProgress?.();
-      unlistenComplete?.();
-      unlistenError?.();
-      unlistenLoaded?.();
+      unlistenLoaded.then((fn) => fn());
     };
   }, []);
 
