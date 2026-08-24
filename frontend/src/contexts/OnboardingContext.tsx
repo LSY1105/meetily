@@ -2,9 +2,9 @@
 
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@/lib/transport';
 import type { PermissionStatus, OnboardingPermissions } from '@/types/onboarding';
 import { resolveOnboardingSummaryModelStatus } from '@/lib/onboarding-summary-model';
+import { useModelDownloadEvents } from '@/hooks/useModelDownloadEvents';
 
 const PARAKEET_MODEL = 'parakeet-tdt-0.6b-v3-int8';
 
@@ -232,94 +232,42 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     };
   }, [currentStep, parakeetDownloaded, summaryModelDownloaded, completed]);
 
-  // Listen to Parakeet download progress
-  useEffect(() => {
-    const unlisten = listen<{
-      modelName: string;
-      progress: number;
-      downloaded_mb?: number;
-      total_mb?: number;
-      speed_mbps?: number;
-      status?: string;
-    }>(
-      'parakeet-model-download-progress',
-      (event) => {
-        const { modelName, progress, downloaded_mb, total_mb, speed_mbps, status } = event.payload;
-        if (modelName === PARAKEET_MODEL) {
-          setParakeetProgress(progress);
-          setParakeetProgressInfo({
-            percent: progress,
-            downloadedMb: downloaded_mb ?? 0,
-            totalMb: total_mb ?? 0,
-            speedMbps: speed_mbps ?? 0,
-          });
-          if (status === 'completed' || progress >= 100) {
-            setParakeetDownloaded(true);
-          }
-        }
+  // Download lifecycle events across engines, normalized by the shared hook.
+  // Handler identity is kept fresh by the hook, so selectedSummaryModel is
+  // always current without resubscribing.
+  useModelDownloadEvents(['parakeet', 'builtin'], (event) => {
+    const { engine, modelName, phase, progress, downloadedMb, totalMb, speedMbps } = event;
+
+    if (engine === 'parakeet') {
+      if (modelName !== PARAKEET_MODEL || phase === 'cancelled' || phase === 'error') return;
+
+      setParakeetProgress(progress);
+      setParakeetProgressInfo({
+        percent: progress,
+        downloadedMb,
+        totalMb,
+        speedMbps,
+      });
+      if (phase === 'complete') {
+        setParakeetDownloaded(true);
       }
-    );
+      return;
+    }
 
-    const unlistenComplete = listen<{ modelName: string }>(
-      'parakeet-model-download-complete',
-      (event) => {
-        const { modelName } = event.payload;
-        if (modelName === PARAKEET_MODEL) {
-          setParakeetDownloaded(true);
-          setParakeetProgress(100);
-        }
+    // builtin summary model
+    if (selectedSummaryModel && modelName === selectedSummaryModel) {
+      setSummaryModelProgress(progress);
+      setSummaryModelProgressInfo({
+        percent: progress,
+        downloadedMb,
+        totalMb,
+        speedMbps,
+      });
+      if (phase === 'complete') {
+        setSummaryModelDownloaded(true);
       }
-    );
-
-    const unlistenError = listen<{ modelName: string; error: string }>(
-      'parakeet-model-download-error',
-      (event) => {
-        const { modelName } = event.payload;
-        if (modelName === PARAKEET_MODEL) {
-          console.error('Parakeet download error:', event.payload.error);
-        }
-      }
-    );
-
-    return () => {
-      unlisten.then(fn => fn());
-      unlistenComplete.then(fn => fn());
-      unlistenError.then(fn => fn());
-    };
-  }, []);
-
-  // Listen to summary model (Built-in AI) download progress
-  useEffect(() => {
-    const unlisten = listen<{
-      model: string;
-      progress: number;
-      downloaded_mb?: number;
-      total_mb?: number;
-      speed_mbps?: number;
-      status: string;
-    }>(
-      'builtin-ai-download-progress',
-      (event) => {
-        const { model, progress, downloaded_mb, total_mb, speed_mbps, status } = event.payload;
-        if (selectedSummaryModel && model === selectedSummaryModel) {
-          setSummaryModelProgress(progress);
-          setSummaryModelProgressInfo({
-            percent: progress,
-            downloadedMb: downloaded_mb ?? 0,
-            totalMb: total_mb ?? 0,
-            speedMbps: speed_mbps ?? 0,
-          });
-          if (status === 'completed' || progress >= 100) {
-            setSummaryModelDownloaded(true);
-          }
-        }
-      }
-    );
-
-    return () => {
-      unlisten.then(fn => fn());
-    };
-  }, [selectedSummaryModel]);
+    }
+  });
 
   const checkDatabaseStatus = async () => {
     try {
