@@ -152,7 +152,7 @@ ringbuf = "0.4.8"
 tempfile = "3.3.0"
 whatlang = "0.16.4"
 
-ffmpeg-sidecar = { git = "https://github.com/nathanbabcock/ffmpeg-sidecar", branch = "main" }
+ffmpeg-sidecar = { git = "https://github.com/nathanbabcock/ffmpeg-sidecar", rev = "a1216c3d0256112702b4c1967101a55488088965" }
 
 sqlx = { version = "0.8", features = [ "runtime-tokio", "sqlite", "chrono"] }
 
