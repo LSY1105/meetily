@@ -7,6 +7,7 @@ import { configService, ModelConfig } from '@/services/configService';
 import { invoke } from '@tauri-apps/api/core';
 import Analytics from '@/lib/analytics';
 import { BetaFeatures, BetaFeatureKey, loadBetaFeatures, saveBetaFeatures } from '@/types/betaFeatures';
+import { useModelConfigUpdated } from '@/hooks/useModelConfigUpdated';
 
 export interface OllamaModel {
   name: string;
@@ -323,28 +324,15 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Listen for model config updates from other components
-  useEffect(() => {
-    const setupListener = async () => {
-      const { listen } = await import('@tauri-apps/api/event');
-      const unlisten = await listen<ModelConfig>('model-config-updated', (event) => {
-        console.log('[ConfigContext] Received model-config-updated event:', event.payload);
-        setModelConfig(event.payload);
+  useModelConfigUpdated((payload) => {
+    console.log('[ConfigContext] Received model-config-updated event:', payload);
+    setModelConfig(payload);
 
-        // Update provider-specific key when config changes
-        if (event.payload.apiKey && event.payload.provider !== 'custom-openai') {
-          updateProviderApiKey(event.payload.provider, event.payload.apiKey);
-        }
-      });
-      return unlisten;
-    };
-
-    let cleanup: (() => void) | undefined;
-    setupListener().then(fn => cleanup = fn);
-
-    return () => {
-      cleanup?.();
-    };
-  }, []);
+    // Update provider-specific key when config changes
+    if (payload.apiKey && payload.provider !== 'custom-openai') {
+      updateProviderApiKey(payload.provider, payload.apiKey);
+    }
+  });
 
   // Load device preferences on mount
   useEffect(() => {

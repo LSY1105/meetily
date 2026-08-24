@@ -9,6 +9,7 @@ import { SummaryLanguageSettings } from '@/components/SummaryLanguageSettings';
 import { ProviderFailoverSection } from '@/components/ProviderFailoverSection';
 import { Switch } from './ui/switch';
 import { useConfig } from '@/contexts/ConfigContext';
+import { useModelConfigUpdated } from '@/hooks/useModelConfigUpdated';
 
 interface SummaryModelSettingsProps {
   refetchTrigger?: number; // Change this to trigger refetch
@@ -82,24 +83,10 @@ export function SummaryModelSettings({ refetchTrigger }: SummaryModelSettingsPro
   }, [refetchTrigger, fetchModelConfig]);
 
   // Listen for model config updates from other components
-  useEffect(() => {
-    const setupListener = async () => {
-      const { listen } = await import('@tauri-apps/api/event');
-      const unlisten = await listen<ModelConfig>('model-config-updated', (event) => {
-        console.log('SummaryModelSettings received model-config-updated event:', event.payload);
-        setModelConfig(event.payload);
-      });
-
-      return unlisten;
-    };
-
-    let cleanup: (() => void) | undefined;
-    setupListener().then(fn => cleanup = fn);
-
-    return () => {
-      cleanup?.();
-    };
-  }, []);
+  useModelConfigUpdated((payload) => {
+    console.log('SummaryModelSettings received model-config-updated event:', payload);
+    setModelConfig(payload);
+  });
 
   // Save handler
   const handleSaveModelConfig = async (config: ModelConfig) => {

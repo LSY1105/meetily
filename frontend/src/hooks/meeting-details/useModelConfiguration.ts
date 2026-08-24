@@ -3,6 +3,7 @@ import { ModelConfig } from '@/components/ModelSettingsModal';
 import { invoke as invokeTauri } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
 import Analytics from '@/lib/analytics';
+import { useModelConfigUpdated } from '@/hooks/useModelConfigUpdated';
 
 interface UseModelConfigurationProps {
   serverAddress: string | null;
@@ -86,24 +87,10 @@ export function useModelConfiguration({ serverAddress }: UseModelConfigurationPr
   }, [serverAddress]);
 
   // Listen for model config updates from other components
-  useEffect(() => {
-    const setupListener = async () => {
-      const { listen } = await import('@tauri-apps/api/event');
-      const unlisten = await listen<ModelConfig>('model-config-updated', (event) => {
-        console.log('Meeting details received model-config-updated event:', event.payload);
-        setModelConfig(event.payload);
-      });
-
-      return unlisten;
-    };
-
-    let cleanup: (() => void) | undefined;
-    setupListener().then(fn => cleanup = fn);
-
-    return () => {
-      cleanup?.();
-    };
-  }, []);
+  useModelConfigUpdated((payload) => {
+    console.log('Meeting details received model-config-updated event:', payload);
+    setModelConfig(payload);
+  });
 
   // Save model configuration
   const handleSaveModelConfig = useCallback(async (updatedConfig?: ModelConfig) => {

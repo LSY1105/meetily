@@ -32,6 +32,7 @@ import { useTranslations } from "next-intl";
 import { ComplianceNotification } from '../ComplianceNotification';
 import { Input } from '../ui/input';
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '../ui/input-group';
+import { useModelConfigUpdated } from '@/hooks/useModelConfigUpdated';
 
 interface SidebarItem {
   id: string;
@@ -66,13 +67,6 @@ const Sidebar: React.FC = () => {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['meetings']));
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showModelSettings, setShowModelSettings] = useState(false);
-  const [modelConfig, setModelConfig] = useState<ModelConfig>({
-    provider: 'ollama',
-    model: '',
-    whisperModel: '',
-    apiKey: null,
-    ollamaEndpoint: null
-  });
   const [transcriptModelConfig, setTranscriptModelConfig] = useState<TranscriptModelProps>({
     provider: 'parakeet',
     model: 'parakeet-tdt-0.6b-v3-int8',
@@ -107,39 +101,6 @@ const Sidebar: React.FC = () => {
 
   const [deleteModalState, setDeleteModalState] = useState<{ isOpen: boolean; itemId: string | null }>({ isOpen: false, itemId: null });
 
-  useEffect(() => {
-    // Note: Don't set hardcoded defaults - let DB be the source of truth
-    const fetchModelConfig = async () => {
-      // Only make API call if serverAddress is loaded
-      if (!serverAddress) {
-        console.log('Waiting for server address to load before fetching model config');
-        return;
-      }
-
-      try {
-        const data = await invoke('api_get_model_config') as any;
-        if (data && data.provider !== null) {
-          // Fetch API key if not included and provider requires it
-          if (data.provider !== 'ollama' && !data.apiKey) {
-            try {
-              const apiKeyData = await invoke('api_get_api_key', {
-                provider: data.provider
-              }) as string;
-              data.apiKey = apiKeyData;
-            } catch (err) {
-              console.error('Failed to fetch API key:', err);
-            }
-          }
-          setModelConfig(data);
-        }
-      } catch (error) {
-        console.error('Failed to fetch model config:', error);
-      }
-    };
-
-    fetchModelConfig();
-  }, [serverAddress]);
-
 
   useEffect(() => {
     // Note: Don't set hardcoded defaults - let DB be the source of truth
@@ -162,26 +123,6 @@ const Sidebar: React.FC = () => {
     fetchTranscriptSettings();
   }, [serverAddress]);
 
-  // Listen for model config updates from other components
-  useEffect(() => {
-    const setupListener = async () => {
-      const { listen } = await import('@tauri-apps/api/event');
-      const unlisten = await listen<ModelConfig>('model-config-updated', (event) => {
-        console.log('Sidebar received model-config-updated event:', event.payload);
-        setModelConfig(event.payload);
-      });
-
-      return unlisten;
-    };
-
-    let cleanup: (() => void) | undefined;
-    setupListener().then(fn => cleanup = fn);
-
-    return () => {
-      cleanup?.();
-    };
-  }, []);
-
 
 
   // Handle model config save
@@ -195,7 +136,6 @@ const Sidebar: React.FC = () => {
         ollamaEndpoint: config.ollamaEndpoint,
       });
 
-      setModelConfig(config);
       console.log('Model config saved successfully');
       setSettingsSaveSuccess(true);
 
