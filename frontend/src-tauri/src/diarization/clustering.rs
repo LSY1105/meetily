@@ -71,12 +71,44 @@ pub fn spectral_cluster(emb: &[Vec<f32>], k: usize) -> Vec<usize> {
 
 fn kmeans(features: &DMatrix<f32>, k: usize) -> Vec<usize> {
     let n = features.nrows();
-    let mut centers = DMatrix::<f32>::zeros(k, features.ncols());
+    let dims = features.ncols();
+
+    // Deterministic farthest-point initialisation. Seeding with the first k
+    // rows is degenerate when those embeddings are identical (e.g. the same
+    // speaker opening a meeting): all centres collapse onto one point and
+    // k-means can never separate the speakers.
+    let mut centers = DMatrix::<f32>::zeros(k, dims);
+    let mut chosen = vec![false; n];
+    let mut best_dist = vec![f32::MAX; n];
+    let mut pick = 0usize;
     for c in 0..k {
-        for d in 0..features.ncols() {
-            centers[(c, d)] = features[(c, d)];
+        chosen[pick] = true;
+        for d in 0..dims {
+            centers[(c, d)] = features[(pick, d)];
         }
+        let mut far = 0usize;
+        let mut far_d = -1.0_f32;
+        for i in 0..n {
+            if chosen[i] {
+                continue;
+            }
+            let d: f32 = (0..dims)
+                .map(|dd| {
+                    let diff = features[(i, dd)] - centers[(c, dd)];
+                    diff * diff
+                })
+                .sum();
+            if d < best_dist[i] {
+                best_dist[i] = d;
+            }
+            if best_dist[i] > far_d {
+                far_d = best_dist[i];
+                far = i;
+            }
+        }
+        pick = far;
     }
+
     let mut labels = vec![0usize; n];
     for _ in 0..20 {
         for i in 0..n {

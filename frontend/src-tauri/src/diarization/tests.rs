@@ -30,7 +30,7 @@ fn buffer_overflow_pops_oldest() {
     }
     let drained = b.drain();
     assert_eq!(drained.len(), MAX_BUFFER_WINDOWS);
-    assert_eq!(drained.front().unwrap().audio_start, 5.0);
+    assert_eq!(drained.first().unwrap().audio_start, 5.0);
 }
 
 #[test]

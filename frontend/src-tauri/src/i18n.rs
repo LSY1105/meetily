@@ -12,6 +12,8 @@ const STORE_KEY: &str = "language";
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct UiLocale {
     pub language: String,
+    /// Older Wave 1 stores only had `language`; tolerate its absence.
+    #[serde(default)]
     pub last_updated: String,
 }
 

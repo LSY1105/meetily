@@ -219,8 +219,9 @@ mod tests {
 
     #[test]
     fn extract_all_includes_bare_and_protected() {
+        // Keeps the `!` prefix so the LLM glossary block can see both lists.
         let terms = extract_all_hotwords("OpenAI\n!AGI\nfoo");
-        assert_eq!(terms, vec!["OpenAI".to_string(), "AGI".to_string(), "foo".to_string()]);
+        assert_eq!(terms, vec!["OpenAI".to_string(), "!AGI".to_string(), "foo".to_string()]);
     }
 
     #[test]

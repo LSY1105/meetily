@@ -815,7 +815,7 @@ mod tests {
         assert_eq!(
             english_markdown_after_normalization_result(
                 "# Original",
-                Err("normalization failed".to_string())
+                Err(LLMError::Other("normalization failed".to_string()))
             )
             .unwrap(),
             "# Original"
@@ -827,7 +827,7 @@ mod tests {
         assert!(
             english_markdown_after_normalization_result(
                 "# Original",
-                Err("Summary generation was cancelled".to_string())
+                Err(LLMError::Cancelled)
             )
             .is_err()
         );
@@ -924,7 +924,10 @@ mod tests {
     fn chunk_prompt_omits_glossary_when_absent() {
         crate::audio::post_processor::set_hotwords_for_llm(vec![]);
         let prompt = build_chunk_summary_user_prompt("hello world");
-        assert!(!prompt.contains("<glossary>"));
+        // GLOSSARY_PROTECTION_INSTRUCTION mentions `<glossary>` verbatim, so
+        // assert on the block's closing tag which is only present when a
+        // glossary block is actually injected.
+        assert!(!prompt.contains("</glossary>"));
     }
 
     #[test]

@@ -31,6 +31,7 @@ pub(crate) fn is_transient_error(msg: &str) -> bool {
     if lower.contains("api request failed (5")
         || lower.contains("returned 5")
         || lower.contains("returned 429")
+        || lower.contains("api request failed (429")
     {
         return true;
     }

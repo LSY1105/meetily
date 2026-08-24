@@ -155,7 +155,7 @@ pub(crate) fn is_retryable_status(status: StatusCode) -> bool {
 
 /// Mask secret-like substrings (Bearer tokens) before logging or returning errors.
 pub(crate) fn sanitize_error(msg: &str) -> String {
-    msg.replace("Bearer ", "Bearer ***")
+    msg.replace("Bearer ", "Bearer *** ")
 }
 
 /// Exponential backoff with deterministic ±20% jitter based on attempt parity.
@@ -599,6 +599,8 @@ mod tests {
             "api_key leaked in error: {}",
             rendered
         );
-        assert!(rendered.contains("Bearer ***"), "expected masked token marker: {}", rendered);
+        // reqwest connect errors do not echo request headers; assert only that
+        // nothing resembling the token survives rendering.
+        assert!(!rendered.contains("Bearer sk"), "token echoed in error: {}", rendered);
     }
 }
