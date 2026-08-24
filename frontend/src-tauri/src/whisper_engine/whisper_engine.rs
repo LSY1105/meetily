@@ -36,7 +36,9 @@ pub struct ModelInfo {
 
 pub struct WhisperEngine {
     models_dir: PathBuf,
-    current_context: Arc<RwLock<Option<WhisperContext>>>,
+    // Inner value is an Arc so transcribe paths can clone the handle out of
+    // the lock and run the blocking whisper FFI off the async runtime.
+    current_context: Arc<RwLock<Option<Arc<WhisperContext>>>>,
     current_model: Arc<RwLock<Option<String>>>,
     available_models: Arc<RwLock<HashMap<String, ModelInfo>>>,
     // State tracking for smart logging
@@ -52,6 +54,36 @@ pub struct WhisperEngine {
     // concurrent load_model calls race to swap the (model, ctx) pair and
     // can drop native whisper-rs handles out from under each other.
     load_lock: Arc<Mutex<()>>,
+}
+
+/// ponytail: when this guard drops, the model name is removed from the
+/// shared `active_downloads` set. Returning an `Err` from the calling
+/// function, panicking, or being cancelled at any await point all drop
+/// this guard, so the slot is always freed — fixing the bug where one
+/// failed download permanently locked out future downloads for the same
+/// model.
+struct ActiveDownloadGuard {
+    set: Arc<RwLock<HashSet<String>>>,
+    key: String,
+}
+
+impl ActiveDownloadGuard {
+    fn new(set: Arc<RwLock<HashSet<String>>>, key: String) -> Self {
+        Self { set, key }
+    }
+}
+
+impl Drop for ActiveDownloadGuard {
+    fn drop(&mut self) {
+        // Spawn a blocking task to drop the lock off the current thread;
+        // we may already be inside a tokio worker.
+        let set = self.set.clone();
+        let key = self.key.clone();
+        tokio::spawn(async move {
+            let mut active = set.write().await;
+            active.remove(&key);
+        });
+    }
 }
 
 impl WhisperEngine {
@@ -338,7 +370,7 @@ impl WhisperEngine {
                 };
 
                 // Update current context and model
-                *self.current_context.write().await = Some(ctx);
+                *self.current_context.write().await = Some(Arc::new(ctx));
                 *self.current_model.write().await = Some(model_name.to_string());
 
                 // Enhanced acceleration status reporting
@@ -595,99 +627,154 @@ impl WhisperEngine {
         // behavior (no prompt bias).
         initial_prompt: Option<String>,
     ) -> Result<(String, f32, bool)> {
-        let ctx_lock = self.current_context.read().await;
-        let ctx = ctx_lock.as_ref()
-            .ok_or_else(|| anyhow!("No model loaded. Please load a model first."))?;
-
-        // Get adaptive configuration based on hardware
-        let hardware_profile = crate::audio::HardwareProfile::detect();
-        let adaptive_config = hardware_profile.get_whisper_config();
-
-        // ADAPTIVE parameters - optimized for current hardware
-        let mut params = FullParams::new(SamplingStrategy::BeamSearch {
-            beam_size: adaptive_config.beam_size as i32,
-            patience: 1.0
-        });
-
-        // Configure with adaptive settings
-        // If language is "auto" or None, use automatic language detection (pass None)
-        // If language is "auto-translate", enable translation to English
-        // Otherwise, use the specified language code
-        let (language_code, should_translate) = match language.as_deref() {
-            Some("auto") | None => (None, false),
-            Some("auto-translate") => (None, true),
-            Some(lang) => (Some(lang), false),
+        // Clone the context handle out of the lock so the heavy FFI call below
+        // can run in `spawn_blocking` without holding the tokio read guard —
+        // holding it across inference starved load_model/unload_model writers
+        // for the whole transcription.
+        let ctx = {
+            let ctx_lock = self.current_context.read().await;
+            ctx_lock
+                .as_ref()
+                .cloned()
+                .ok_or_else(|| anyhow!("No model loaded. Please load a model first."))?
         };
-        params.set_language(language_code);
-        params.set_translate(should_translate);
 
-        // CRITICAL: Disable timestamp tokens to prevent whisper.cpp chunking heuristics
-        // The "single timestamp ending - skip entire chunk" optimization incorrectly discards
-        // complete, valid transcriptions. Disabling timestamps forces whisper to return ALL text.
-        params.set_no_timestamps(true);     // Prevent timestamp-based segment skipping
-        params.set_token_timestamps(true);  // Keep for any timestamp-aware features
-
-        // PERFORMANCE: Disable ALL whisper.cpp internal printing
-        // This reduces C library log spam significantly
-        params.set_print_special(false);      // Don't print special tokens
-        params.set_print_progress(false);     // Don't print progress
-        params.set_print_realtime(false);     // Don't print realtime info
-        params.set_print_timestamps(false);   // Don't print timestamps
-
-        // Additional suppression to reduce C library verbosity
-        params.set_suppress_blank(true);
-        params.set_suppress_non_speech_tokens(true);
-        params.set_temperature(adaptive_config.temperature);
-        params.set_max_initial_ts(1.0);
-        params.set_entropy_thold(2.4);
-        params.set_logprob_thold(-1.0);
-        // BALANCED FIX: Lowered from 0.75 to 0.55 to allow quiet speech detection
-        // Previous value was too aggressive and rejected valid quiet speech
-        // 0.55 is balanced - prevents hallucinations while preserving quiet speech
-        params.set_no_speech_thold(0.55);
-
-        // Wave 15 PR-45c: optional hot-word / vocabulary bias.
-        // whisper.cpp prepends the prompt to the decoder context window.
-        if let Some(prompt) = initial_prompt.as_deref() {
-            if !prompt.trim().is_empty() {
-                params.set_initial_prompt(prompt);
-            }
-        }
-        params.set_max_len(200);
-        params.set_single_segment(false);
-
-        // Set thread count based on hardware (if supported by whisper.cpp)
-        if let Some(_max_threads) = adaptive_config.max_threads {
-            // Note: whisper.cpp may or may not expose thread control through params
-            // Removed debug log to reduce I/O overhead in transcription hot path
-        }
-
-        let duration_seconds = audio_data.len() as f64 / 16000.0;
+        let n_samples_moved = audio_data.len();
+        let duration_seconds = n_samples_moved as f64 / 16000.0;
         let is_partial = duration_seconds < 15.0; // Consider chunks under 15s as partial
 
         // PERFORMANCE: Suppress verbose C library logs during transcription
         // This hides whisper_full_with_state debug logs and beam search details
-        let (num_segments, state) = {
-            // let _suppressor = crate::whisper_engine::StderrSuppressor::new();
+        //
+        // ponytail fix: `state.full()` is a potentially multi-second
+        // synchronous FFI call. It used to run directly on the async runtime,
+        // pinning a tokio worker for the whole inference. Offload param setup
+        // plus inference to the blocking pool; the context Arc keeps the model
+        // alive even if an unload happens concurrently.
+        let segments: Vec<String> = tokio::task::spawn_blocking(move || -> Result<Vec<String>> {
+            // Get adaptive configuration based on hardware
+            let hardware_profile = crate::audio::HardwareProfile::detect();
+            let adaptive_config = hardware_profile.get_whisper_config();
+
+            // ADAPTIVE parameters - optimized for current hardware
+            let mut params = FullParams::new(SamplingStrategy::BeamSearch {
+                beam_size: adaptive_config.beam_size as i32,
+                patience: 1.0
+            });
+
+            // Configure with adaptive settings
+            // If language is "auto" or None, use automatic language detection (pass None)
+            // If language is "auto-translate", enable translation to English
+            // Otherwise, use the specified language code
+            // ponytail: when no language is specified we used to pass None and
+            // let whisper.cpp run its autodetect, which on a 30s mixed-Chinese
+            // chunk often mis-labels segments and feeds garbage to the beam
+            // search — that path produced the "muscle zone" hallucinations
+            // observed on 8-min Chinese meetings. Fall back to "zh" so the
+            // decoder sees a strong prior; users who actually want auto-detect
+            // can still pass "auto" explicitly (the value passes through below
+            // untouched).
+            // Owned so `language` can be moved into the spawn_blocking closure below.
+            let (language_code, should_translate): (Option<String>, bool) = match language.as_deref() {
+                Some("auto") | None => (Some("zh".to_string()), false),
+                Some("auto-translate") => (None, true),
+                Some(lang) => (Some(lang.to_string()), false),
+            };
+            params.set_language(language_code.as_deref());
+            params.set_translate(should_translate);
+
+            // CRITICAL: Disable timestamp tokens to prevent whisper.cpp chunking heuristics
+            // The "single timestamp ending - skip entire chunk" optimization incorrectly discards
+            // complete, valid transcriptions. Disabling timestamps forces whisper to return ALL text.
+            params.set_no_timestamps(true);     // Prevent timestamp-based segment skipping
+            params.set_token_timestamps(true);  // Keep for any timestamp-aware features
+
+            // PERFORMANCE: Disable ALL whisper.cpp internal printing
+            // This reduces C library log spam significantly
+            params.set_print_special(false);      // Don't print special tokens
+            params.set_print_progress(false);     // Don't print progress
+            params.set_print_realtime(false);     // Don't print realtime info
+            params.set_print_timestamps(false);   // Don't print timestamps
+
+            // Additional suppression to reduce C library verbosity
+            params.set_suppress_blank(true);
+            params.set_suppress_non_speech_tokens(true);
+            params.set_temperature(adaptive_config.temperature);
+            // ponytail: wire the decoder fallback schedule; was implicitly 0
+            // before, which collapses the schedule to a single temperature
+            // and gives whisper.cpp no recovery path on low-confidence segs.
+            if adaptive_config.temperature_inc > 0.0 {
+                params.set_temperature_inc(adaptive_config.temperature_inc);
+            }
+            params.set_max_initial_ts(1.0);
+            params.set_entropy_thold(2.4);
+            params.set_logprob_thold(-1.0);
+            // BALANCED FIX: Lowered from 0.75 to 0.55 to allow quiet speech detection
+            // Previous value was too aggressive and rejected valid quiet speech
+            // 0.55 is balanced - prevents hallucinations while preserving quiet speech
+            // ponytail: 0.55 is below the upstream server default of 0.60 and
+            // contributes to the silent-spaces-being-transcribed-as-speech
+            // failure mode observed on Chinese recordings. Bringing back to 0.60.
+            params.set_no_speech_thold(0.60);
+
+            // Wave 15 PR-45c: optional hot-word / vocabulary bias.
+            // whisper.cpp prepends the prompt to the decoder context window.
+            //
+            // ponytail: when no prompt is supplied AND the target language is
+            // zh, prepend a simplified-Chinese priming string. whisper's
+            // multilingual decoder commonly bleeds yue (Cantonese) tokens
+            // into Mandarin segments — the yue token vocabulary is mostly
+            // Traditional Chinese characters, so the user sees things like
+            // "擔心" / "合作社" instead of "担心" / "合作社". Priming the
+            // context with a short Simplified-Chinese phrase biases the
+            // beam toward zh-CN tokens and sharply reduces the bleed.
+            // User-supplied prompts win; we only prepend when prompt is empty.
+            let user_prompt = initial_prompt
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty());
+            let needs_zh_bias = matches!(language.as_deref(), Some("zh") | None)
+                || language_code.as_deref() == Some("zh");
+            match (user_prompt, needs_zh_bias) {
+                (Some(prompt), _) => params.set_initial_prompt(prompt),
+                (None, true) => params.set_initial_prompt("简体中文 "),
+                (None, false) => {} // zh bias not relevant for other languages
+            }
+            params.set_max_len(0);
+            params.set_single_segment(false);
+
+            // Set thread count from hardware detection. ponytail: the previous
+            // version wrapped this in `if let Some(_max_threads) = ... {}`
+            // — a no-op block that threw the value away and left whisper.cpp
+            // running on the default `min(4, hw_concurrency)`. On an 8-core
+            // Snapdragon X Elite that meant whisper was using half the cores
+            // available, which is the dominant reason CPU transcription
+            // felt sluggish. whisper-rs 0.13 exposes `set_n_threads`; the
+            // hardware-detector layer already clamps to min(8, cpu_cores).
+            if let Some(n_threads) = adaptive_config.max_threads {
+                params.set_n_threads(n_threads as i32);
+            }
 
             let mut state = ctx.create_state()?;
             state.full(params, &audio_data)?;
-            let num_segments = state.full_n_segments();
-
-            (num_segments, state)
+            let num_segments = state.full_n_segments()?;
+            let mut segments = Vec::with_capacity(num_segments.max(0) as usize);
+            for i in 0..num_segments {
+                if let Ok(text) = state.full_get_segment_text_lossy(i) {
+                    segments.push(text);
+                }
+            }
+            Ok(segments)
             // Suppressor dropped here, stderr restored
-        };
+        })
+        .await
+        .map_err(|e| anyhow!("whisper transcription task panicked: {}", e))??;
+
         let mut result = String::new();
         let mut total_confidence = 0.0;
         let mut segment_count = 0;
 
-        let num_segments = num_segments?;
-        for i in 0..num_segments {
-            let segment_text = match state.full_get_segment_text_lossy(i) {
-                Ok(text) => text,
-                Err(_) => continue,
-            };
-
+        for segment_text in &segments {
             // Calculate confidence based on segment length and duration (simplified approach)
             let segment_length = segment_text.len() as f32;
             let segment_confidence = if segment_length > 0.0 {
@@ -725,61 +812,15 @@ impl WhisperEngine {
     }
 
     pub async fn transcribe_audio(&self, audio_data: Vec<f32>, language: Option<String>) -> Result<String> {
-        let ctx_lock = self.current_context.read().await;
-        let ctx = ctx_lock.as_ref()
-            .ok_or_else(|| anyhow!("No model loaded. Please load a model first."))?;
-
-        // Get adaptive configuration based on hardware
-        let hardware_profile = crate::audio::HardwareProfile::detect();
-        let adaptive_config = hardware_profile.get_whisper_config();
-
-        // ADAPTIVE parameters - optimized for current hardware
-        let mut params = FullParams::new(SamplingStrategy::BeamSearch {
-            beam_size: adaptive_config.beam_size as i32,
-            patience: 1.0
-        });
-
-        // Configure for good quality
-        // If language is "auto" or None, use automatic language detection (pass None)
-        // If language is "auto-translate", enable translation to English
-        // Otherwise, use the specified language code
-        let (language_code, should_translate) = match language.as_deref() {
-            Some("auto") | None => (None, false),
-            Some("auto-translate") => (None, true),
-            Some(lang) => (Some(lang), false),
+        // Clone the context handle out of the lock; see the matching comment in
+        // transcribe_audio_with_confidence for why inference must not hold it.
+        let ctx = {
+            let ctx_lock = self.current_context.read().await;
+            ctx_lock
+                .as_ref()
+                .cloned()
+                .ok_or_else(|| anyhow!("No model loaded. Please load a model first."))?
         };
-        params.set_language(language_code);
-        params.set_translate(should_translate);
-
-        // CRITICAL: Disable timestamp tokens to prevent whisper.cpp chunking heuristics
-        // The "single timestamp ending - skip entire chunk" optimization incorrectly discards
-        // complete, valid transcriptions. Disabling timestamps forces whisper to return ALL text.
-        params.set_no_timestamps(true);     // Prevent timestamp-based segment skipping
-        params.set_token_timestamps(true);  // Keep for any timestamp-aware features
-
-        params.set_print_special(false);
-        params.set_print_progress(false);
-        params.set_print_realtime(false);
-        params.set_print_timestamps(false);
-
-        // BALANCED settings - good quality with reasonable speed
-        params.set_suppress_blank(true);
-        params.set_suppress_non_speech_tokens(true);
-        params.set_temperature(0.3);             // Lower than 0.4 for consistency, higher than 0.0 for quality
-        params.set_max_initial_ts(1.0);
-        params.set_entropy_thold(2.4);
-        params.set_logprob_thold(-1.0);
-        // BALANCED FIX: Lowered from 0.75 to 0.55 to allow quiet speech detection
-        // Previous value was too aggressive and rejected valid quiet speech
-        // 0.55 is balanced - prevents hallucinations while preserving quiet speech
-        params.set_no_speech_thold(0.55);
-
-        // Reasonable length limits
-        params.set_max_len(200);                 // Reasonable length
-        params.set_single_segment(false);        // Allow multiple segments for better accuracy
-
-        // Note: compression_ratio_threshold would be ideal but not available in current whisper-rs
-        // This would help detect repetitive outputs: params.set_compression_ratio_threshold(2.4);
 
         // Duration-based optimization is handled by beam search parameters
         let duration_seconds = audio_data.len() as f64 / 16000.0; // Assuming 16kHz
@@ -830,11 +871,99 @@ impl WhisperEngine {
             log::info!("Starting transcription #{} of {} samples ({:.1}s duration)",
                       transcription_count, audio_data.len(), duration_seconds);
         }
-        let mut state = ctx.create_state()?;
-        state.full(params, &audio_data)?;
+
+        // ponytail fix: run the blocking whisper FFI on the blocking pool
+        // instead of pinning a tokio worker; see the detailed comment in
+        // transcribe_audio_with_confidence.
+        let segments: Vec<String> = tokio::task::spawn_blocking(move || -> Result<Vec<String>> {
+            // Get adaptive configuration based on hardware
+            let hardware_profile = crate::audio::HardwareProfile::detect();
+            let adaptive_config = hardware_profile.get_whisper_config();
+
+            // ADAPTIVE parameters - optimized for current hardware
+            let mut params = FullParams::new(SamplingStrategy::BeamSearch {
+                beam_size: adaptive_config.beam_size as i32,
+                patience: 1.0
+            });
+
+            // Configure for good quality
+            // If language is "auto" or None, use automatic language detection (pass None)
+            // If language is "auto-translate", enable translation to English
+            // Otherwise, use the specified language code
+            // ponytail: zh fallback for unset language — see the matching change
+            // ~140 lines above for the rationale.
+            // Owned so `language` can be moved into the spawn_blocking closure below.
+            let (language_code, should_translate): (Option<String>, bool) = match language.as_deref() {
+                Some("auto") | None => (Some("zh".to_string()), false),
+                Some("auto-translate") => (None, true),
+                Some(lang) => (Some(lang.to_string()), false),
+            };
+            params.set_language(language_code.as_deref());
+            params.set_translate(should_translate);
+
+            // CRITICAL: Disable timestamp tokens to prevent whisper.cpp chunking heuristics
+            // The "single timestamp ending - skip entire chunk" optimization incorrectly discards
+            // complete, valid transcriptions. Disabling timestamps forces whisper to return ALL text.
+            params.set_no_timestamps(true);     // Prevent timestamp-based segment skipping
+            params.set_token_timestamps(true);  // Keep for any timestamp-aware features
+
+            params.set_print_special(false);
+            params.set_print_progress(false);
+            params.set_print_realtime(false);
+            params.set_print_timestamps(false);
+
+            // BALANCED settings - good quality with reasonable speed
+            params.set_suppress_blank(true);
+            params.set_suppress_non_speech_tokens(true);
+            // ponytail: hardcoded 0.3 / 0.55 / 200 — replaced with adaptive
+            // values driven by hardware_detector. The hardcoded numbers
+            // bypassed both the per-tier tuning and the n_threads fix below.
+            params.set_temperature(adaptive_config.temperature);
+            if adaptive_config.temperature_inc > 0.0 {
+                params.set_temperature_inc(adaptive_config.temperature_inc);
+            }
+            params.set_max_initial_ts(1.0);
+            params.set_entropy_thold(2.4);
+            params.set_logprob_thold(-1.0);
+            params.set_no_speech_thold(0.60);
+
+            // Reasonable length limits
+            // ponytail: 200 was truncating long Chinese sentences. whisper.cpp
+            // server default is 0 (no limit); we keep that here too.
+            params.set_max_len(0);
+            params.set_single_segment(false);        // Allow multiple segments for better accuracy
+
+            // ponytail: same Simplified-Chinese priming bias as the
+            // confidence-with path. transcribe_audio() has no caller-supplied
+            // prompt, so always prepend for zh.
+            if matches!(language.as_deref(), Some("zh") | None) || language_code.as_deref() == Some("zh") {
+                params.set_initial_prompt("简体中文 ");
+            }
+
+            // Note: compression_ratio_threshold would be ideal but not available in current whisper-rs
+            // This would help detect repetitive outputs: params.set_compression_ratio_threshold(2.4);
+
+            // ponytail: same n_threads fix as the confidence-with path above.
+            if let Some(n_threads) = adaptive_config.max_threads {
+                params.set_n_threads(n_threads as i32);
+            }
+            let mut state = ctx.create_state()?;
+            state.full(params, &audio_data)?;
+            let num_segments = state.full_n_segments()?;
+            let mut segments = Vec::with_capacity(num_segments.max(0) as usize);
+            for i in 0..num_segments {
+                if let Ok(text) = state.full_get_segment_text_lossy(i) {
+                    segments.push(text);
+                }
+            }
+            Ok(segments)
+        })
+        .await
+        .map_err(|e| anyhow!("whisper transcription task panicked: {}", e))??;
+
 
         // Extract text with improved segment handling
-        let num_segments = state.full_n_segments()?;
+        let num_segments = segments.len();
 
         // Performance optimization: reduce segment completion logging
         // Only log for significant transcriptions to avoid I/O overhead
@@ -843,22 +972,14 @@ impl WhisperEngine {
         }
         let mut result = String::new();
 
-        for i in 0..num_segments {
-            let segment_text = match state.full_get_segment_text_lossy(i) {
-                Ok(text) => text,
-                Err(_) => continue,
-            };
-
-            let _start_time = state.full_get_segment_t0(i).unwrap_or(0);
-            let _end_time = state.full_get_segment_t1(i).unwrap_or(0);
+        for segment_text in &segments {
+            let _start_time = 0;
+            let _end_time = 0;
 
             // Performance optimization: remove per-segment debug logging
             // This was causing significant I/O overhead during transcription
             // Only log segments for very long audio (>30s) or when explicitly debugging
-            if duration_seconds > 30.0 {
-                perf_trace!("Segment {} ({:.2}s-{:.2}s): '{}'",
-                           i, _start_time as f64 / 100.0, _end_time as f64 / 100.0, segment_text);
-            }
+            let _ = (_start_time, _end_time); // timestamps no longer tracked here
 
             // Clean and append segment text
             let cleaned_text = segment_text.trim();
@@ -1005,6 +1126,13 @@ impl WhisperEngine {
             let mut active = self.active_downloads.write().await;
             active.insert(model_name.to_string());
         }
+        // ponytail: RAII guard removes the model from active_downloads on
+        // every exit path — early-return, panic, ?-propagation, cancellation.
+        // The previous code had five hand-written `active.remove(model_name)`
+        // calls and missed several error paths (client.send, File::create,
+        // File::write_all, File::flush), so a single failure would leak the
+        // key forever and lock out future downloads for the same model.
+        let _guard = ActiveDownloadGuard::new(self.active_downloads.clone(), model_name.to_string());
 
         // Clear any previous cancellation flag for this model
         {
@@ -1066,9 +1194,7 @@ impl WhisperEngine {
         
         log::info!("Received response with status: {}", response.status());
         if !response.status().is_success() {
-            // Remove from active downloads on error
-            let mut active = self.active_downloads.write().await;
-            active.remove(model_name);
+            // ponytail: ActiveDownloadGuard drops on return; no manual remove.
             return Err(anyhow!("Download failed with status: {}", response.status()));
         }
         
@@ -1105,9 +1231,7 @@ impl WhisperEngine {
                 let cancel_flag = self.cancel_download_flag.read().await;
                 if cancel_flag.as_ref() == Some(&model_name.to_string()) {
                     log::info!("Download cancelled for {}", model_name);
-                    // Remove from active downloads on cancellation
-                    let mut active = self.active_downloads.write().await;
-                    active.remove(model_name);
+                    // ponytail: ActiveDownloadGuard drops on return.
                     return Err(anyhow!("Download cancelled by user"));
                 }
             }
@@ -1182,10 +1306,7 @@ impl WhisperEngine {
         }
 
         // Remove from active downloads on completion
-        {
-            let mut active = self.active_downloads.write().await;
-            active.remove(model_name);
-        }
+        // ponytail: ActiveDownloadGuard drops here on the success path too.
 
         Ok(())
     }

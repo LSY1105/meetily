@@ -3,13 +3,13 @@
 import { useCallback, useRef, useReducer, startTransition, useEffect, useState, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAutoScroll } from "@/hooks/useAutoScroll";
-import { useTranscriptStreaming } from "@/hooks/useTranscriptStreaming";
 import { useHotwords, type HotwordRule } from "@/hooks/useHotwords";
 // PR-42-iii: streaming LLM postprocess events.
 import { useTranscriptPostprocessEvents } from "@/hooks/useTranscriptPostprocessEvents";
 import { invoke } from "@tauri-apps/api/core";
 import { RefreshCw } from "lucide-react";
 import { wrapHotwords } from "@/lib/wrapHotwords";
+import { punctuateCJK } from "@/lib/punctuateCJK";
 import { toast } from "sonner";
 import { ConfidenceIndicator } from "./ConfidenceIndicator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
@@ -128,8 +128,21 @@ const TranscriptSegment = memo(function TranscriptSegment({
             });
         }
     }, [t]);
-    const displayText = cleanStopWords(text) || (text.trim() === '' ? '[Silence]' : text);
-    const hotwordNodes = wrapHotwords(displayText, hotwords, handleHotwordCopy, protectedSet).nodes;
+    // ponytail: revert of single-line truncate (which the user rejected
+    // as "治标, not a fix"). Root cause is per-character streaming
+    // emit, not layout. Layout stays multi-line; if the per-char
+    // emit is fixed at the source (backend commits only on endpoint,
+    // not per partial), the browser does not re-wrap text on every
+    // character and there is nothing to "shake".
+    const textClass = "text-base text-gray-800 leading-relaxed" + (onEditText ? " cursor-text hover:bg-gray-50 rounded px-1 -mx-1" : "");
+    const displayText = cleanStopWords(text) || (text.trim() === '' ? '' : text);
+    // ponytail: insert CJK punctuation for readability. Pure string
+    // transform — never mutates already-emitted characters, so the
+    // streaming `strip_prefix` check stays valid. Pass the punctuated
+    // string to hotword matching only; sizer/aria keep using
+    // `displayText` since punctuation width is constant.
+    const punctuated = punctuateCJK(displayText);
+    const hotwordNodes = wrapHotwords(punctuated, hotwords, handleHotwordCopy, protectedSet).nodes;
     const customName = speaker ? customSpeakerNames?.[speaker] : undefined;
     const [isRenaming, setIsRenaming] = useState(false);
     const [draftName, setDraftName] = useState('');
@@ -279,10 +292,10 @@ const TranscriptSegment = memo(function TranscriptSegment({
                         </div>
                     ) : isStreaming ? (
                         <div className="bg-gray-100 border border-gray-200 rounded-lg px-3 py-2">
-                            <p onClick={onEditText ? openEdit : undefined} className={"text-base text-gray-800 leading-relaxed" + (onEditText ? " cursor-text hover:bg-gray-50 rounded px-1 -mx-1" : "")}>{hotwordNodes}{postprocessFailed ? (<span className="ml-1 inline-flex align-baseline text-amber-600" title={postprocessFailedMessage ?? ""} aria-label="LLM postprocess failed">⚠</span>) : null}{postprocessFailed ? (<button type="button" onClick={handleRetry} disabled={retrying} className="ml-1 inline-flex align-baseline text-blue-600 hover:text-blue-800 disabled:text-gray-400" title={t("retry_postprocess.button", { default: "Retry" })} aria-label={t("retry_postprocess.button", { default: "Retry" })}><RefreshCw size={14} className={retrying ? "animate-spin" : ""} /></button>) : null}</p>
+                            <p onClick={onEditText ? openEdit : undefined} className={textClass}>{hotwordNodes}{postprocessFailed ? (<span className="ml-1 inline-flex align-baseline text-amber-600" title={postprocessFailedMessage ?? ""} aria-label="LLM postprocess failed">⚠</span>) : null}{postprocessFailed ? (<button type="button" onClick={handleRetry} disabled={retrying} className="ml-1 inline-flex align-baseline text-blue-600 hover:text-blue-800 disabled:text-gray-400" title={t("retry_postprocess.button", { default: "Retry" })} aria-label={t("retry_postprocess.button", { default: "Retry" })}><RefreshCw size={14} className={retrying ? "animate-spin" : ""} /></button>) : null}</p>
                         </div>
                     ) : (
-                        <p onClick={onEditText ? openEdit : undefined} className={"text-base text-gray-800 leading-relaxed" + (onEditText ? " cursor-text hover:bg-gray-50 rounded px-1 -mx-1" : "")}>{hotwordNodes}{postprocessFailed ? (<span className="ml-1 inline-flex align-baseline text-amber-600" title={postprocessFailedMessage ?? ""} aria-label="LLM postprocess failed">⚠</span>) : null}{postprocessFailed ? (<button type="button" onClick={handleRetry} disabled={retrying} className="ml-1 inline-flex align-baseline text-blue-600 hover:text-blue-800 disabled:text-gray-400" title={t("retry_postprocess.button", { default: "Retry" })} aria-label={t("retry_postprocess.button", { default: "Retry" })}><RefreshCw size={14} className={retrying ? "animate-spin" : ""} /></button>) : null}</p>
+                        <p onClick={onEditText ? openEdit : undefined} className={textClass}>{hotwordNodes}{postprocessFailed ? (<span className="ml-1 inline-flex align-baseline text-amber-600" title={postprocessFailedMessage ?? ""} aria-label="LLM postprocess failed">⚠</span>) : null}{postprocessFailed ? (<button type="button" onClick={handleRetry} disabled={retrying} className="ml-1 inline-flex align-baseline text-blue-600 hover:text-blue-800 disabled:text-gray-400" title={t("retry_postprocess.button", { default: "Retry" })} aria-label={t("retry_postprocess.button", { default: "Retry" })}><RefreshCw size={14} className={retrying ? "animate-spin" : ""} /></button>) : null}</p>
                     )}
                 </div>
             </div>
@@ -344,18 +357,17 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
         disableAutoScroll,
     });
 
-    // Streaming text effect hook (typewriter animation for new transcripts)
-    const { streamingSegmentId, getDisplayText } = useTranscriptStreaming(
-        segments,
-        isRecording,
-        enableStreaming
-    );
-    // PR-42-iii: streaming LLM postprocess; corrected text replaces the
-    // streaming typewriter output once it arrives. Failed attempts fall
-    // back to the original text plus an inline failure marker.
+    // ponytail: iFlytek append-only. The backend now streams ready-to-
+    // render text; the previous 15ms client-side typewriter was the
+    // second jitter source on top of the backend whole-text replace.
+    // Removed `useTranscriptStreaming`; the row's accumulated `text`
+    // from `TranscriptContext` is rendered directly.
+    // PR-42-iii: streaming LLM postprocess; corrected text replaces
+    // the original text once it arrives. Failed attempts fall back to
+    // the original text plus an inline failure marker.
     const postprocess = useTranscriptPostprocessEvents(true);
     const resolveDisplayText = (segment: TranscriptSegmentData): string =>
-        postprocess.getDisplayText(segment.id, getDisplayText(segment));
+        postprocess.getDisplayText(segment.id, segment.text);
 
     // Infinite scroll: IntersectionObserver to trigger loading more
     useEffect(() => {
@@ -469,11 +481,24 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                             const segment = segments[virtualRow.index];
                             const nextSeg = segments[virtualRow.index + 1];
                             const canMergeWithNext = !!(onMergeWithNext && nextSeg && (!segment.speaker || !nextSeg.speaker || segment.speaker === nextSeg.speaker));
-                            const isStreaming = streamingSegmentId === segment.id;
+                            // ponytail: iFlytek streaming flag.
+                            // Begin/Mid sentences render grey-italic;
+                            // Full renders normal dark text. The legacy
+                            // streamingSegmentId fallback is gone (the
+                            // typewriter that drove it was deleted).
+                            const isStreaming = segment.sentence_status === 'Begin' || segment.sentence_status === 'Mid';
 
                             return (
                                 <div
-                                    key={segment.id}
+                                    // ponytail: key on sequence_id so
+                                    // streaming partials reuse the same
+                                    // row instead of remounting on every
+                                    // chunk (which caused the whole segment
+                                    // to flash). iFlytek mode: key on sentence_id so Mid updates for
+                                    // the same sentence reuse the same
+                                    // row; only Full keeps it locked
+                                    // in dark text.
+                                    key={segment.sentence_id !== undefined ? `sid-${segment.sentence_id}` : (segment.sequence_id !== undefined ? `seq-${segment.sequence_id}` : `seg-${virtualRow.index}`)}
                                     data-index={virtualRow.index}
                                     ref={virtualizer.measureElement}
                                     style={{
@@ -545,14 +570,26 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                         {segments.map((segment, index) => {
                             const nextSeg = segments[index + 1];
                             const canMergeWithNext = !!(onMergeWithNext && nextSeg && (!segment.speaker || !nextSeg.speaker || segment.speaker === nextSeg.speaker));
-                            const isStreaming = streamingSegmentId === segment.id;
+                            // ponytail: iFlytek streaming flag.
+                            // Begin/Mid sentences render grey-italic;
+                            // Full renders normal dark text. The legacy
+                            // streamingSegmentId fallback is gone (the
+                            // typewriter that drove it was deleted).
+                            const isStreaming = segment.sentence_status === 'Begin' || segment.sentence_status === 'Mid';
 
                             return (
-                                <motion.div
-                                    key={segment.id}
-                                    initial={{ opacity: 0, y: 5 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ duration: 0.15 }}
+                                // ponytail: framer-motion initial/animate
+                                // was the suspect for "every new char
+                                // shakes the prior text" - every text
+                                // change re-renders the row, and motion's
+                                // internal style updates appeared to
+                                // retrigger on each partial. Stripped to
+                                // a plain div; AnimatePresence above no
+                                // longer wraps this branch so there is
+                                // no exit animation either. iFlytek
+                                // mode: key on sentence_id first.
+                                <div
+                                    key={segment.sentence_id !== undefined ? `sid-${segment.sentence_id}` : (segment.sequence_id !== undefined ? `seq-${segment.sequence_id}` : `seg-${index}`)}
                                 >
                                     <TranscriptSegment
                                         id={segment.id}
@@ -573,7 +610,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                         canMergeWithNext={canMergeWithNext}
                                         hotwords={hotwords}
                                     />
-                                </motion.div>
+                                </div>
                             );
                         })}
                     </div>

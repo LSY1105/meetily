@@ -57,13 +57,10 @@ pub mod anthropic;
 pub mod groq;
 pub mod openrouter;
 pub mod parakeet_engine;
-// sherpa-onnx streaming ASR. Upstream ships prebuilt static libs for
-// x86_64 Windows / macOS / Linux; ARM64 Windows (aarch64-pc-windows-msvc)
-// is not yet supported. The dep is restricted to supported targets in
-// Cargo.toml so this module only compiles when the underlying C library
-// is available. At runtime, when the module is absent, the transcription
-// worker simply falls back to whisper / parakeet.
-#[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
+// sherpa-onnx streaming ASR. Compiles on every target, including
+// aarch64-pc-windows-msvc — the win-arm64 static archive is pulled from
+// the v1.12.23 release via a build.rs patch in
+// patches/sherpa-onnx-sys-1.13.4/ (upstream dropped arm64 in 1.13.x).
 pub mod sherpa_engine;
 pub mod state;
 pub mod summary;
@@ -488,7 +485,7 @@ pub fn run() {
             });
 
             // Set Sherpa-onnx models directory (no-op on unsupported arch).
-            #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
+            
             {
                 sherpa_engine::commands::set_models_directory(&_app.handle());
 
@@ -646,29 +643,41 @@ pub fn run() {
             parakeet_engine::commands::parakeet_delete_corrupted_model,
             parakeet_engine::commands::open_parakeet_models_folder,
             // Sherpa-onnx streaming ASR engine commands (only when supported).
-            #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
+            
             sherpa_engine::commands::sherpa_init,
-            #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
+            
             sherpa_engine::commands::sherpa_get_available_models,
-            #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
+            
             sherpa_engine::commands::sherpa_load_model,
-            #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
+            
             sherpa_engine::commands::sherpa_get_current_model,
-            #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
+            
             sherpa_engine::commands::sherpa_is_model_loaded,
-            #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
+
+            // ponytail: probe whether the CJK punctuation model is
+            // loaded into the engine. Drives the ModelPicker
+            // "installed/missing" badge.
+            sherpa_engine::commands::sherpa_is_punctuator_loaded,
+            // ponytail: explicit load command for the Punct row's
+            // Refresh button. The provider=Whisper path never runs
+            // the streaming task that would auto-attach the
+            // punctuator, so this lets the UI nudge the engine to
+            // load the model on demand. Idempotent — returns the
+            // post-call state so the UI doesn't need a second probe.
+            sherpa_engine::commands::sherpa_load_punctuator,
+
             sherpa_engine::commands::sherpa_has_available_models,
-            #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
+            
             sherpa_engine::commands::sherpa_transcribe_audio,
-            #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
+            
             sherpa_engine::commands::sherpa_get_models_directory,
-            #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
+            
             sherpa_engine::commands::sherpa_download_model,
-            #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
+            
             sherpa_engine::commands::sherpa_cancel_download,
-            #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
+            
             sherpa_engine::commands::sherpa_delete_corrupted_model,
-            #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
+            
             sherpa_engine::commands::open_sherpa_models_folder,
             // Parallel processing commands
             whisper_engine::parallel_commands::initialize_parallel_processor,

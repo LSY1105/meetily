@@ -57,7 +57,7 @@ static CONTRACTION_RULES: Lazy<Vec<(Regex, &str)>> = Lazy::new(|| {
     ];
     raw.iter()
         .map(|(pat, repl)| {
-            let re = Regex::new(&format!("\\b{}\\b", regex::escape(pat)))
+            let re = Regex::new(&format!("(?i)\\b{}\\b", regex::escape(pat)))
                 .expect("contraction regex must compile");
             (re, *repl)
         })
@@ -181,7 +181,19 @@ impl PostProcessor {
     }
 
     /// Clean repetitive text patterns (same as whisper_engine but moved to background)
+    ///
+    /// Wave 18 PR-51 parity with `WhisperEngine::clean_repetitive_text`: drop
+    /// obviously meaningless English artifacts (`uh uh uh`,
+    /// `thank you for watching`, ...) while preserving legitimate short CJK
+    /// interjections (`嗯嗯嗯嗯`, `啊啊啊`).
     fn clean_repetitive_text(text: &str) -> String {
+        if text.is_empty() {
+            return String::new();
+        }
+        if Self::is_meaningless_output(text) {
+            return String::new();
+        }
+
         let words: Vec<&str> = text.split_whitespace().collect();
         if words.len() < 4 {
             return text.to_string();
@@ -229,6 +241,71 @@ impl PostProcessor {
         }
 
         result.join(" ")
+    }
+
+    // Wave 18 PR-51 parity with WhisperEngine: detect obviously meaningless
+    // transcription output. English-style patterns only apply to non-CJK text
+    // so legitimate Chinese interjections are never swallowed.
+    fn is_meaningless_output(text: &str) -> bool {
+        let cjk_ratio_value = Self::cjk_ratio(text);
+
+        if cjk_ratio_value < 0.5 {
+            let text_lower = text.to_lowercase();
+            let meaningless_patterns = [
+                "thank you for watching",
+                "thanks for watching",
+                "like and subscribe",
+                "music playing",
+                "applause",
+                "laughter",
+                "um um um",
+                "uh uh uh",
+                "ah ah ah",
+            ];
+
+            for pattern in &meaningless_patterns {
+                if text_lower.contains(pattern) {
+                    return true;
+                }
+            }
+        }
+
+        let unique_chars: std::collections::HashSet<char> = text.chars().collect();
+        if cjk_ratio_value >= 0.5 {
+            if unique_chars.len() <= 1 && text.chars().count() > 30 {
+                return true;
+            }
+        } else if unique_chars.len() <= 3 && text.len() > 10 {
+            return true;
+        }
+
+        false
+    }
+
+    fn cjk_ratio(text: &str) -> f32 {
+        let mut cjk_count: usize = 0;
+        let mut total_count: usize = 0;
+        for c in text.chars() {
+            if c.is_alphabetic() {
+                total_count += 1;
+                if Self::is_cjk_char(c) {
+                    cjk_count += 1;
+                }
+            }
+        }
+        if total_count == 0 {
+            0.0
+        } else {
+            cjk_count as f32 / total_count as f32
+        }
+    }
+
+    fn is_cjk_char(c: char) -> bool {
+        matches!(c,
+            '\u{4E00}'..='\u{9FFF}' |
+            '\u{3400}'..='\u{4DBF}' |
+            '\u{F900}'..='\u{FAFF}'
+        )
     }
 
     /// Remove common transcription artifacts using simple string matching
@@ -603,7 +680,7 @@ mod tests {
         let middle = sentinel
             .trim_start_matches("__MP_PROTECTED_v1_")
             .trim_end_matches("__");
-        let parts: Vec<&'static str> = middle.splitn(2, '_').collect();
+        let parts: Vec<&str> = middle.splitn(2, '_').collect();
         assert_eq!(parts.len(), 2);
         assert_eq!(parts[0].len(), 8);
         assert!(parts[0].chars().all(|c| c.is_ascii_hexdigit()));

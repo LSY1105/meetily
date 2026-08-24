@@ -34,6 +34,13 @@ pub enum PerformanceTier {
 pub struct AdaptiveWhisperConfig {
     pub beam_size: usize,
     pub temperature: f32,
+    // ponytail: temperature increment for the decoder fallback schedule.
+    // whisper.cpp iterates from `temperature` to 1.0 in steps of
+    // `temperature_inc` and tries each. Setting it to 0.2 matches the
+    // upstream server default; leaving it at 0 collapses the schedule
+    // to a single temperature and gives the model no way to recover
+    // from low-logprob decoding failures.
+    pub temperature_inc: f32,
     pub use_gpu: bool,
     pub max_threads: Option<usize>,
     pub chunk_size_preference: ChunkSizePreference,
@@ -207,7 +214,18 @@ impl HardwareProfile {
         {
             return AdaptiveWhisperConfig {
                 beam_size: 2,
-                temperature: 0.2,
+                // ponytail: was temperature=0.2 with temperature_inc=0.2.
+                // The fallback schedule was triggering whisper.cpp's
+                // repetition-loop failure mode on CPU Windows
+                // (temperature>0 path emits the same token 200+ times
+                // when audio is borderline — observed on the user's
+                // large-v3-turbo run). Set temperature_inc=0.0 so the
+                // schedule collapses to a single argmax pass; if that
+                // also fails, whisper.cpp returns empty rather than
+                // looping. Lower-temperature argmax has lower WER on
+                // Chinese than the 0.2 sampling fallback.
+                temperature: 0.0,
+                temperature_inc: 0.0,
                 use_gpu: self.has_gpu_acceleration,
                 max_threads: Some(self.cpu_cores.min(8) as usize),
                 chunk_size_preference: ChunkSizePreference::Balanced,
@@ -220,28 +238,32 @@ impl HardwareProfile {
             match self.performance_tier {
                 PerformanceTier::Ultra => AdaptiveWhisperConfig {
                     beam_size: 5,  // Maximum quality
-                    temperature: 0.1,
+                    temperature: 0.0,
+                    temperature_inc: 0.0,
                     use_gpu: self.has_gpu_acceleration,
                     max_threads: Some(self.cpu_cores.min(8) as usize),
                     chunk_size_preference: ChunkSizePreference::Quality,
                 },
                 PerformanceTier::High => AdaptiveWhisperConfig {
                     beam_size: 3,  // High quality
-                    temperature: 0.2,
+                    temperature: 0.0,
+                    temperature_inc: 0.0,
                     use_gpu: self.has_gpu_acceleration,
                     max_threads: Some(self.cpu_cores.min(6) as usize),
                     chunk_size_preference: ChunkSizePreference::Balanced,
                 },
                 PerformanceTier::Medium => AdaptiveWhisperConfig {
                     beam_size: 2,  // Balanced
-                    temperature: 0.3,
+                    temperature: 0.0,
+                    temperature_inc: 0.0,
                     use_gpu: self.has_gpu_acceleration,
                     max_threads: Some(self.cpu_cores.min(4) as usize),
                     chunk_size_preference: ChunkSizePreference::Balanced,
                 },
                 PerformanceTier::Low => AdaptiveWhisperConfig {
                     beam_size: 1,  // Fast processing
-                    temperature: 0.4,
+                    temperature: 0.0,
+                    temperature_inc: 0.0,
                     use_gpu: false, // Force CPU to avoid GPU overhead on weak hardware
                     max_threads: Some(2),
                     chunk_size_preference: ChunkSizePreference::Fast,

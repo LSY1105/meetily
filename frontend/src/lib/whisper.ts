@@ -116,10 +116,10 @@ export const MODEL_CONFIGS: Record<string, Partial<ModelInfo>> = {
     speed: 'Medium'
   },
   'large-v3-turbo-q5_0': {
-    description: 'Quantized large turbo model, best balance.',
+    description: 'Quantized large turbo, best speed/accuracy balance. Default.',
     size_mb: 547,
     accuracy: 'High',
-    speed: 'Medium'
+    speed: 'Fast'
   },
   'large-v3-q5_0': {
     description: 'Quantized large model, best balance of speed and accuracy.',

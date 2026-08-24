@@ -54,6 +54,17 @@ impl RecordingManager {
 
     // Remove app handle storage for now - will be passed directly when saving
 
+    /// ponytail: forward a raw-audio sender to the pipeline so the
+    /// sherpa-onnx streaming task can pull mixed 16k audio every
+    /// 100ms. The pipeline holds an Arc clone internally, so flipping
+    /// this on/off mid-session is safe.
+    pub fn set_raw_audio_sender(
+        &self,
+        sender: Option<tokio::sync::mpsc::UnboundedSender<super::recording_state::AudioChunk>>,
+    ) {
+        self.pipeline_manager.set_raw_audio_sender(sender);
+    }
+
     /// Start recording with specified devices
     ///
     /// # Arguments

@@ -622,12 +622,34 @@ pub async fn api_get_transcript_config<R: Runtime>(
                     }))
                 }
                 Err(e) => {
-                    log_error!(
-                        "Failed to get transcript API key for provider {}: {}",
-                        &config.provider,
-                        e
+                    // ponytail: local ASR providers (sherpa/parakeet/localWhisper)
+                    // don't need an API key, so get_api_key legitimately returns
+                    // "Invalid provider" for them. Returning None keeps the
+                    // already-loaded provider+model config usable; only fail
+                    // the whole call if we *know* the provider expects a key.
+                    let needs_key = matches!(
+                        config.provider.as_str(),
+                        "claude" | "groq" | "openai" | "openrouter"
                     );
-                    Err(e.to_string())
+                    if needs_key {
+                        log_error!(
+                            "Failed to get transcript API key for provider {}: {}",
+                            &config.provider,
+                            e
+                        );
+                        Err(e.to_string())
+                    } else {
+                        log_info!(
+                            "Provider '{}' doesn't need an API key — ignoring get_api_key error: {}",
+                            &config.provider,
+                            e
+                        );
+                        Ok(Some(TranscriptConfig {
+                            provider: config.provider,
+                            model: config.model,
+                            api_key: None,
+                        }))
+                    }
                 }
             }
         }
@@ -960,8 +982,21 @@ pub async fn api_save_transcript<R: Runtime>(
     // PR-51 (inline segment edit) sends `timestamp` as a number — the
     // playback-relative audio_start_time. Coerce numbers to a string here so
     // serde_json's strict typing doesn't reject the payload.
+    // ponytail: drop empty segments before persisting. The streaming
+    // pipeline emits `[Silence]` placeholders for VAD-only chunks
+    // (no speech detected) which used to land in the DB with an
+    // empty `text` but a real timestamp — so the meeting timeline
+    // showed rows that contained nothing. Filtering here keeps the
+    // persisted meeting transcript aligned with what the user
+    // actually saw during recording.
     let transcripts_to_save: Vec<TranscriptSegment> = transcripts
         .into_iter()
+        .filter(|v| {
+            v.get("text")
+                .and_then(|t| t.as_str())
+                .map(|s| !s.trim().is_empty())
+                .unwrap_or(false)
+        })
         .map(|mut v| {
             if let Some(obj) = v.as_object_mut() {
                 if let Some(n) = obj.get("timestamp").and_then(|t| t.as_f64()) {

@@ -4,7 +4,9 @@
 //! a drop-in local-transcription provider alongside whisper and parakeet.
 
 use crate::sherpa_engine::engine::{DownloadProgress, SherpaEngine};
-use crate::sherpa_engine::model::{SherpaModelInfo, SherpaModelStatus, DEFAULT_SHERPA_MODEL};
+use crate::sherpa_engine::model::{
+    SherpaModelInfo, SherpaModelStatus, DEFAULT_SHERPA_MODEL, PUNCT_MODEL,
+};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tauri::{command, AppHandle, Emitter, Manager, Runtime};
@@ -25,7 +27,18 @@ pub fn set_models_directory<R: Runtime>(app: &AppHandle<R>) {
             return;
         }
     };
-    let models_dir = app_data_dir.join("models");
+    // ponytail: shared `models/` root holds whisper/parakeet/
+    // sherpa/summary side by side. We add a `sherpa/` subdir so
+    // sherpa owns its own tree and can be wiped/reset independently
+    // of the other engines — `engine.rs::new_with_models_dir` treats
+    // the value here as the FINAL path (matches whisper.rs and
+    // parakeet.rs). Previously the engine re-applied
+    // `.join("sherpa")`, which silently shifted every download to a
+    // different directory than the one we probed for discovery —
+    // that race surfaced when the punctuation model finished but
+    // remained stuck in "Downloading" because `discover_models`
+    // could not find its files.
+    let models_dir = app_data_dir.join("models").join("sherpa");
     if !models_dir.exists() {
         if let Err(e) = std::fs::create_dir_all(&models_dir) {
             log::error!("Failed to create models dir: {}", e);
@@ -88,6 +101,22 @@ pub async fn sherpa_load_model<R: Runtime>(
         serde_json::json!({ "modelName": model_name }),
     );
 
+    // ponytail: the punctuation model uses OfflinePunctuation, not
+    // OnlineRecognizer. Routing it through `engine.load_model`
+    // would build an OnlineRecognizer from punctuation-only files
+    // and sherpa-onnx would reject the model with "Invalid
+    // provider: sherpa". The punctuator is auto-attached on the
+    // next load_model of any ASR model; surface a no-op success
+    // so the UI treats the punctuation row the same as the ASR
+    // ones.
+    if model_name == crate::sherpa_engine::model::PUNCT_MODEL {
+        let _ = app_handle.emit(
+            "sherpa-model-loading-completed",
+            serde_json::json!({ "modelName": model_name }),
+        );
+        return Ok(());
+    }
+
     let result = engine.load_model(&model_name).await;
 
     if result.is_ok() {
@@ -132,6 +161,47 @@ pub async fn sherpa_is_model_loaded() -> Result<bool, String> {
     Ok(engine.is_model_loaded().await)
 }
 
+// ponytail: frontend health probe — ModelPicker calls this to render
+// "installed / missing" without a separate filesystem probe. Returns
+// `true` only when the offline punctuation model is loaded into
+// memory and ready to punctuate streaming text.
+#[command]
+pub async fn sherpa_is_punctuator_loaded() -> Result<bool, String> {
+    let engine = {
+        SHERPA_ENGINE
+            .lock()
+            .unwrap()
+            .as_ref()
+            .cloned()
+            .ok_or_else(|| "Sherpa engine not initialized".to_string())?
+    };
+    Ok(engine.is_punctuator_loaded().await)
+}
+
+// ponytail: standalone command so the frontend can pre-attach the
+// CJK punctuator without picking an ASR model. With this, a user
+// on provider=Whisper who downloads Punct and clicks "Refresh" gets
+// the model loaded into the sherpa engine purely for punctuation
+// purposes. The streaming-task path is still gated on provider=sherpa
+// (the streaming worker only runs in that branch — see
+// recording_commands.rs::start_sherpa_streaming), so the punctuator
+// sits idle when provider=Whisper. Returns Ok even when the model
+// files are missing — the engine just stays at punctuator=None and
+// the UI badge stays at "Downloaded · activates with ASR model".
+#[command]
+pub async fn sherpa_load_punctuator() -> Result<bool, String> {
+    let engine = {
+        SHERPA_ENGINE
+            .lock()
+            .unwrap()
+            .as_ref()
+            .cloned()
+            .ok_or_else(|| "Sherpa engine not initialized".to_string())?
+    };
+    engine.attach_punctuator_if_files_present().await;
+    Ok(engine.is_punctuator_loaded().await)
+}
+
 #[command]
 pub async fn sherpa_has_available_models() -> Result<bool, String> {
     let engine = {
@@ -148,6 +218,13 @@ pub async fn sherpa_has_available_models() -> Result<bool, String> {
         .map_err(|e| format!("sherpa discover: {}", e))?;
     Ok(models
         .iter()
+        // ponytail: skip the offline punctuation model — it sits
+        // in the catalog so the ModelPicker can offer it as a
+        // download, but it's not an ASR model and must not count
+        // toward "ready to record". If we don't filter here, a
+        // user who downloaded only the punctuation model would
+        // appear to have an available ASR model.
+        .filter(|m| m.name != PUNCT_MODEL)
         .any(|m| matches!(m.status, SherpaModelStatus::Available)))
 }
 
@@ -176,9 +253,17 @@ pub async fn sherpa_validate_model_ready_with_config<R: tauri::Runtime>(
         .discover_models()
         .await
         .map_err(|e| format!("sherpa discover: {}", e))?;
+    // ponytail: skip the punctuation model. It is not an ASR
+    // model and loading it through `load_model` would route the
+    // zipformer path with no encoder/decoder/joiner files —
+    // surfacing to the frontend as the catch-all
+    // "Unable to start recording" error.
     let available: Vec<_> = models
         .iter()
-        .filter(|m| matches!(m.status, SherpaModelStatus::Available))
+        .filter(|m| {
+            m.name != PUNCT_MODEL
+                && matches!(m.status, SherpaModelStatus::Available)
+        })
         .collect();
     if available.is_empty() {
         return Err("No sherpa-onnx models available. Download one to enable real-time streaming ASR.".to_string());

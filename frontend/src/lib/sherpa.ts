@@ -35,11 +35,18 @@ export const SHERPA_MODEL_DISPLAY_CONFIG: Record<string, {
   tier: 'fastest' | 'balanced' | 'precise';
 }> = {
   'sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20': {
-    friendlyName: 'Stream (zh+en)',
+    friendlyName: 'Stream Zip (zh+en)',
     icon: '🛰️',
     tagline: 'Real time • Streaming Chinese + English Zipformer',
     recommended: true,
     tier: 'fastest',
+  },
+  'sherpa-onnx-streaming-paraformer-bilingual-zh-en': {
+    friendlyName: 'Stream Para (zh+en)',
+    icon: '🎯',
+    tagline: 'Real time • FunASR-derived streaming Paraformer, stronger Chinese punctuation and number normalization',
+    recommended: false,
+    tier: 'precise',
   },
 };
 
@@ -76,6 +83,27 @@ export class SherpaAPI {
 
   static async isModelLoaded(): Promise<boolean> {
     return await invoke<boolean>('sherpa_is_model_loaded');
+  }
+
+  // ponytail: distinct from isModelLoaded — the punctuator is
+  // loaded alongside the ASR recognizer (see engine.rs::load_model),
+  // and `sherpa_load_model` returns Ok for the Punct name without
+  // going through the recognizer path. The UI uses this to render
+  // an "Active" badge on the Punct row instead of the misleading
+  // "✓ Loaded" badge that only the currently-selected ASR model
+  // should get.
+  static async isPunctuatorLoaded(): Promise<boolean> {
+    return await invoke<boolean>('sherpa_is_punctuator_loaded');
+  }
+
+  // ponytail: explicit "load the punctuator" call. The Punct row's
+  // Refresh button hits this so the badge can flip to "Active"
+  // even when the user is on provider=Whisper (where the streaming
+  // task never runs and would otherwise never trigger punctuator
+  // loading). The backend command is idempotent and returns the
+  // post-call state so the UI can update without a second probe.
+  static async loadPunctuator(): Promise<boolean> {
+    return await invoke<boolean>('sherpa_load_punctuator');
   }
 
   static async hasAvailableModels(): Promise<boolean> {

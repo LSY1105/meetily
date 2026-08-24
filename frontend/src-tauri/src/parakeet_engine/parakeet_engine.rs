@@ -121,6 +121,32 @@ pub struct ParakeetEngine {
     pub(crate) active_downloads: Arc<RwLock<HashSet<String>>>, // Set of models currently being downloaded
 }
 
+/// ponytail: RAII guard that removes `key` from `active_downloads` on drop,
+/// so any early-return, `?`-propagated error, or panic inside the download
+/// body frees the slot. Replaces hand-written `active.remove(model_name)`
+/// calls that missed several error paths.
+struct ActiveDownloadGuard {
+    set: Arc<RwLock<HashSet<String>>>,
+    key: String,
+}
+
+impl ActiveDownloadGuard {
+    fn new(set: Arc<RwLock<HashSet<String>>>, key: String) -> Self {
+        Self { set, key }
+    }
+}
+
+impl Drop for ActiveDownloadGuard {
+    fn drop(&mut self) {
+        let set = self.set.clone();
+        let key = self.key.clone();
+        tokio::spawn(async move {
+            let mut active = set.write().await;
+            active.remove(&key);
+        });
+    }
+}
+
 impl ParakeetEngine {
     /// Create a new Parakeet engine with optional custom models directory
     pub fn new_with_models_dir(models_dir: Option<PathBuf>) -> Result<Self> {
@@ -562,6 +588,10 @@ impl ParakeetEngine {
             let mut active = self.active_downloads.write().await;
             active.insert(model_name.to_string());
         }
+        // ponytail: RAII guard releases the active_downloads slot on every
+        // exit path — fixes the leak when an early-return, panic, or `?`
+        // propagation would skip the hand-written remove().
+        let _guard = ActiveDownloadGuard::new(self.active_downloads.clone(), model_name.to_string());
 
         // Clear any previous cancellation flag for this model
         {
@@ -575,9 +605,7 @@ impl ParakeetEngine {
             match models.get(model_name).cloned() {
                 Some(info) => info,
                 None => {
-                    // Remove from active downloads on error
-                    let mut active = self.active_downloads.write().await;
-                    active.remove(model_name);
+                    // ponytail: ActiveDownloadGuard drops on return; no manual remove.
                     return Err(anyhow!("Model {} not found", model_name));
                 }
             }
@@ -622,9 +650,7 @@ impl ParakeetEngine {
         let model_dir = &model_info.path;
         if !model_dir.exists() {
             if let Err(e) = fs::create_dir_all(model_dir).await {
-                // Remove from active downloads on error
-                let mut active = self.active_downloads.write().await;
-                active.remove(model_name);
+                // ponytail: ActiveDownloadGuard drops on return; no manual remove.
                 return Err(anyhow!("Failed to create model directory: {}", e));
             }
         }
@@ -784,8 +810,7 @@ impl ParakeetEngine {
                     );
 
                     if let Err(e) = fs::remove_file(&file_path).await {
-                        let mut active = self.active_downloads.write().await;
-                        active.remove(model_name);
+                        // ponytail: ActiveDownloadGuard drops on return; no manual remove.
                         return Err(anyhow!("Failed to delete incomplete file {}: {}", filename, e));
                     }
 
@@ -795,8 +820,7 @@ impl ParakeetEngine {
                         .map_err(|e| anyhow!("Retry failed for {}: {}", filename, e))?;
 
                     if !response.status().is_success() {
-                        let mut active = self.active_downloads.write().await;
-                        active.remove(model_name);
+                        // ponytail: ActiveDownloadGuard drops on return; no manual remove.
                         return Err(anyhow!("Retry failed for {} with status: {}", filename, response.status()));
                     }
 
@@ -804,8 +828,7 @@ impl ParakeetEngine {
                 }
             } else {
                 // Other errors
-                let mut active = self.active_downloads.write().await;
-                active.remove(model_name);
+                // ponytail: ActiveDownloadGuard drops on return; no manual remove.
                 return Err(anyhow!("Download failed for {} with status: {}", filename, response.status()));
             };
 
@@ -839,9 +862,7 @@ impl ParakeetEngine {
                         // Flush and keep partial file for resume on next attempt
                         let _ = writer.flush().await;
                         drop(writer);
-                        // Remove from active downloads on cancellation
-                        let mut active = self.active_downloads.write().await;
-                        active.remove(model_name);
+                        // ponytail: ActiveDownloadGuard drops on return; no manual remove.
                         return Err(anyhow!("Download cancelled by user"));
                     }
                 }
@@ -856,10 +877,7 @@ impl ParakeetEngine {
                         let _ = writer.flush().await;
 
                         // Remove from active downloads
-                        {
-                            let mut active = self.active_downloads.write().await;
-                            active.remove(model_name);
-                        }
+                        // ponytail: ActiveDownloadGuard drops here on the success path too.
 
                         // Update model status to Missing so retry can work
                         {
@@ -882,11 +900,7 @@ impl ParakeetEngine {
                                 log::error!("Download error for {}: {:?}", model_name, e);
                                 let _ = writer.flush().await;
 
-                                // Remove from active downloads
-                                {
-                                    let mut active = self.active_downloads.write().await;
-                                    active.remove(model_name);
-                                }
+                                // ponytail: ActiveDownloadGuard drops on return; no manual remove.
 
                                 // Update model status to Missing so retry can work
                                 {
@@ -913,11 +927,7 @@ impl ParakeetEngine {
                 };
 
                 if let Err(e) = writer.write_all(&chunk).await {
-                    // Remove from active downloads on error
-                    {
-                        let mut active = self.active_downloads.write().await;
-                        active.remove(model_name);
-                    }
+                    // ponytail: ActiveDownloadGuard drops on return; no manual remove.
 
                     // Update model status to Missing so retry can work
                     {
@@ -987,11 +997,7 @@ impl ParakeetEngine {
 
             // Flush the buffered writer
             if let Err(e) = writer.flush().await {
-                // Remove from active downloads on error
-                {
-                    let mut active = self.active_downloads.write().await;
-                    active.remove(model_name);
-                }
+                // ponytail: ActiveDownloadGuard drops on return; no manual remove.
 
                 // Update model status to Missing so retry can work
                 {
@@ -1034,10 +1040,7 @@ impl ParakeetEngine {
         }
 
         // Remove from active downloads on completion
-        {
-            let mut active = self.active_downloads.write().await;
-            active.remove(model_name);
-        }
+        // ponytail: ActiveDownloadGuard drops here on the success path too.
 
         // Clear cancellation flag on successful completion
         {

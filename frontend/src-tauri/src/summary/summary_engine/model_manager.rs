@@ -373,6 +373,8 @@ impl ModelManager {
             let mut active = self.active_downloads.write().await;
             active.insert(model_name.to_string());
         }
+        // ponytail: RAII guard releases the slot on every exit path.
+        let _guard = ActiveDownloadGuard::new(self.active_downloads.clone(), model_name.to_string());
 
         // Clear cancellation flag
         {
@@ -413,10 +415,7 @@ impl ModelManager {
                     }
 
                     // Remove from active downloads
-                    {
-                        let mut active = self.active_downloads.write().await;
-                        active.remove(model_name);
-                    }
+                    // ponytail: ActiveDownloadGuard drops here on success.
 
                     // Report 100% progress
                     if let Some(ref callback) = progress_callback {
@@ -507,8 +506,7 @@ impl ModelManager {
             }
             (response.content_length().unwrap_or(0), false)
         } else {
-            let mut active = self.active_downloads.write().await;
-            active.remove(model_name);
+            // ponytail: ActiveDownloadGuard drops on return; no manual remove.
             return Err(anyhow!("Download failed with status: {}", response.status()));
         };
 
@@ -567,9 +565,7 @@ impl ModelManager {
                     let _ = writer.flush().await;
                     drop(writer);
 
-                    // Remove from active downloads
-                    let mut active = self.active_downloads.write().await;
-                    active.remove(model_name);
+                    // ponytail: ActiveDownloadGuard drops on return; no manual remove.
 
                     // Update status
                     {
@@ -593,9 +589,7 @@ impl ModelManager {
                     log::warn!("Download timeout for {}: no data received for 30 seconds", model_name);
                     let _ = writer.flush().await;
 
-                    // Cleanup: Remove from active downloads
-                    let mut active = self.active_downloads.write().await;
-                    active.remove(model_name);
+                    // ponytail: ActiveDownloadGuard drops on return; no manual remove.
 
                     // Set model status to Error (NOT NotDownloaded) so UI can show retry button
                     {
@@ -618,9 +612,7 @@ impl ModelManager {
                             log::error!("Download error for {}: {:?}", model_name, e);
                             let _ = writer.flush().await;
 
-                            // Cleanup: Remove from active downloads
-                            let mut active = self.active_downloads.write().await;
-                            active.remove(model_name);
+                            // ponytail: ActiveDownloadGuard drops on return; no manual remove.
 
                             // Categorize error for user-friendly message
                             let error_msg = if e.is_timeout() {
@@ -745,8 +737,7 @@ impl ModelManager {
             }
 
             // Remove from active downloads
-            let mut active = self.active_downloads.write().await;
-            active.remove(model_name);
+            // ponytail: ActiveDownloadGuard drops on return; no manual remove.
 
             return Err(anyhow!("File validation failed: {}", e));
         }
@@ -761,10 +752,7 @@ impl ModelManager {
         }
 
         // Remove from active downloads
-        {
-            let mut active = self.active_downloads.write().await;
-            active.remove(model_name);
-        }
+        // ponytail: ActiveDownloadGuard drops here on success.
 
         Ok(())
     }
@@ -847,5 +835,31 @@ impl ModelManager {
     /// Get models directory path
     pub fn get_models_directory(&self) -> PathBuf {
         self.models_dir.clone()
+    }
+}
+
+/// ponytail: RAII guard that removes `key` from `active_downloads` on drop,
+/// so any early-return, `?`-propagated error, or panic inside the download
+/// body frees the slot. Replaces hand-written `active.remove(model_name)`
+/// calls that missed several error paths.
+struct ActiveDownloadGuard {
+    set: Arc<RwLock<HashSet<String>>>,
+    key: String,
+}
+
+impl ActiveDownloadGuard {
+    fn new(set: Arc<RwLock<HashSet<String>>>, key: String) -> Self {
+        Self { set, key }
+    }
+}
+
+impl Drop for ActiveDownloadGuard {
+    fn drop(&mut self) {
+        let set = self.set.clone();
+        let key = self.key.clone();
+        tokio::spawn(async move {
+            let mut active = set.write().await;
+            active.remove(&key);
+        });
     }
 }

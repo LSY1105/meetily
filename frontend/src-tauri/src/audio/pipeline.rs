@@ -47,14 +47,14 @@ impl AudioMixerRingBuffer {
     }
 
     fn add_samples(&mut self, device_type: DeviceType, samples: Vec<f32>) {
-        // Log buffer health periodically for diagnostics
-        static mut SAMPLE_COUNTER: u64 = 0;
-        unsafe {
-            SAMPLE_COUNTER += 1;
-            if SAMPLE_COUNTER % 200 == 0 {
-                debug!("📊 Ring buffer status: mic={} samples, sys={} samples (max={})",
-                       self.mic_buffer.len(), self.system_buffer.len(), self.max_buffer_size);
-            }
+        // Log buffer health periodically for diagnostics.
+        // Atomic (not `static mut`) — `add_samples` can run on multiple
+        // capture threads and a data race here is UB.
+        static SAMPLE_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let counter = SAMPLE_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        if counter % 200 == 0 {
+            debug!("📊 Ring buffer status: mic={} samples, sys={} samples (max={})",
+                   self.mic_buffer.len(), self.system_buffer.len(), self.max_buffer_size);
         }
 
         match device_type {
@@ -680,6 +680,14 @@ impl AudioCapture {
 pub struct AudioPipeline {
     receiver: mpsc::UnboundedReceiver<AudioChunk>,
     transcription_sender: mpsc::UnboundedSender<AudioChunk>,
+    // ponytail: raw 16kHz mono audio taps the sherpa-onnx streaming
+    // slot. The recording command installs a sender here at session
+    // start; the run loop pushes 100ms chunks of the *mixed* 16k
+    // window. The streaming path is parallel to the VAD path and
+    // uses a fully independent `current_streaming` slot in
+    // `SherpaEngine`, so endpoint-driven VAD resets do not wipe the
+    // streaming hypothesis.
+    raw_audio_sender: Arc<std::sync::Mutex<Option<mpsc::UnboundedSender<AudioChunk>>>>,
     state: Arc<RecordingState>,
     vad_processor: ContinuousVadProcessor,
     sample_rate: u32,
@@ -707,7 +715,7 @@ impl AudioPipeline {
         mic_device_kind: super::device_detection::InputDeviceKind,
         system_device_name: String,
         system_device_kind: super::device_detection::InputDeviceKind,
-    ) -> Self {
+    ) -> Result<Self> {
         // Log device characteristics for adaptive buffering
         info!("🎛️ AudioPipeline initializing with device characteristics:");
         info!("   Mic: '{}' ({:?}) - Buffer: {:?}",
@@ -722,9 +730,11 @@ impl AudioPipeline {
         // Create VAD processor with balanced redemption time for speech accumulation
         // The VAD processor now handles 48kHz->16kHz resampling internally
         // This bridges natural pauses without excessive fragmentation
-        // For mac os core audio, 900ms, for windows 400ms seems good
-
-        let redemption_time = if cfg!(target_os = "macos") { 400 } else { 400 };
+        // ponytail: streaming task now drives the live transcript with its
+// own 1.5s-silence endpoint policy, so VAD only needs to feed
+// reasonable segments for the saved-history path. 1000ms bridges
+// natural Chinese pauses without merging whole sentences into one.
+let redemption_time = if cfg!(target_os = "macos") { 900 } else { 1000 };
 
         let vad_processor = match ContinuousVadProcessor::new(sample_rate, redemption_time) {
             Ok(processor) => {
@@ -732,8 +742,11 @@ impl AudioPipeline {
                 processor
             }
             Err(e) => {
+                // Propagate instead of panicking: a panic inside a spawned
+                // pipeline task silently kills audio processing (only a
+                // JoinError remains). The caller surfaces this to the UI.
                 error!("Failed to create VAD processor: {}", e);
-                panic!("VAD processor creation failed: {}", e);
+                return Err(anyhow::anyhow!("VAD processor creation failed: {}", e));
             }
         };
 
@@ -744,7 +757,7 @@ impl AudioPipeline {
         // Note: target_chunk_duration_ms is ignored - VAD controls segmentation now
         let _ = target_chunk_duration_ms;
 
-        Self {
+        Ok(Self {
             receiver,
             transcription_sender,
             state,
@@ -760,7 +773,12 @@ impl AudioPipeline {
             ring_buffer,
             mixer,
             recording_sender_for_mixed: None,  // Will be set by manager
-        }
+            // ponytail: empty until the manager wires up the
+            // sherpa-onnx raw-streaming task; the run loop just
+            // checks `if let Some(raw_tx) = ...` so leaving this as
+            // None for non-streaming sessions is safe.
+            raw_audio_sender: Arc::new(std::sync::Mutex::new(None)),
+        })
     }
 
     /// Run the VAD-driven audio processing pipeline
@@ -876,6 +894,53 @@ impl AudioPipeline {
                                 };
                                 let _ = sender.send(recording_chunk);
                             }
+
+                            // ponytail: tap the mixed window into the
+                            // sherpa-onnx raw-streaming path. The
+                            // raw stream is downsampled to 16kHz (sherpa
+                            // requires 16k) and accumulated into 100ms
+                            // chunks so the decoder gets a steady feed
+                            // matching its training-time cadence. The
+                            // lock is held only for the duration of a
+                            // sender.send; for non-streaming sessions
+                            // (no sender installed) the cost is two
+                            // mutex attempts per mixed window.
+                            if let Ok(guard) = self.raw_audio_sender.lock() {
+                                if let Some(ref raw_tx) = *guard {
+                                    let to_send: Vec<f32> = if self.sample_rate == 16000 {
+                                        mixed_with_gain.clone()
+                                    } else {
+                                        super::audio_processing::resample_audio(
+                                            &mixed_with_gain,
+                                            self.sample_rate,
+                                            16000,
+                                        )
+                                    };
+                                    // 100ms @ 16kHz = 1600 samples. If
+                                    // the user runs a different sample
+                                    // rate upstream the resampler may
+                                    // produce a slightly different
+                                    // length; we send whatever we have
+                                    // and let the consumer handle it.
+                                    // In practice the difference is
+                                    // < 1 sample per chunk.
+                                    let streaming_chunk = AudioChunk {
+                                        data: to_send,
+                                        sample_rate: 16000,
+                                        timestamp: chunk.timestamp,
+                                        chunk_id: self.chunk_id_counter,
+                                        device_type: DeviceType::Microphone,
+                                    };
+                                    // ponytail: never block. If the
+                                    // streaming task is slow the
+                                    // channel buffer is unbounded so
+                                    // the next push is fine; if the
+                                    // receiver is dropped the send
+                                    // returns Err and we just ignore
+                                    // it.
+                                    let _ = raw_tx.send(streaming_chunk);
+                                }
+                            }
                         }
                     }
                 }
@@ -944,6 +1009,12 @@ impl AudioPipeline {
 pub struct AudioPipelineManager {
     pipeline_handle: Option<JoinHandle<Result<()>>>,
     audio_sender: Option<mpsc::UnboundedSender<AudioChunk>>,
+    // ponytail: shared slot the recording command writes into at
+    // session start so the pipeline run loop can tap raw mixed 16k
+    // audio into the sherpa-onnx streaming path. Arc<Mutex<Option>>
+    // because the manager outlives the inner pipeline task; flipping
+    // this mid-session takes effect on the next mixed window.
+    raw_audio_sender: Arc<std::sync::Mutex<Option<mpsc::UnboundedSender<AudioChunk>>>>,
 }
 
 impl AudioPipelineManager {
@@ -951,6 +1022,23 @@ impl AudioPipelineManager {
         Self {
             pipeline_handle: None,
             audio_sender: None,
+            // ponytail: empty by default. The recording command
+            // installs a sender here at session start so the
+            // pipeline run loop taps mixed 16k audio into the
+            // sherpa-onnx raw-streaming path. Leaving None for
+            // sessions that don't need streaming is safe — the
+            // run loop just no-ops the streaming push.
+            raw_audio_sender: Arc::new(std::sync::Mutex::new(None)),
+        }
+    }
+
+    /// ponytail: install a sender that streams raw mixed 16k audio to
+    /// the sherpa-onnx streaming task. Pass `None` to disable.
+    /// Pipeline holds an Arc clone, so flipping this on mid-session
+    /// takes effect on the next mixed window without a restart.
+    pub fn set_raw_audio_sender(&self, sender: Option<mpsc::UnboundedSender<AudioChunk>>) {
+        if let Ok(mut g) = self.raw_audio_sender.lock() {
+            *g = sender;
         }
     }
 
@@ -989,11 +1077,18 @@ impl AudioPipelineManager {
             mic_device_kind,
             system_device_name,
             system_device_kind,
-        );
+        )?;
 
         // CRITICAL FIX: Connect recording sender to receive pre-mixed audio
         // This ensures both mic AND system audio are captured in recordings
         pipeline.recording_sender_for_mixed = recording_sender;
+
+        // ponytail: share the raw-audio sender slot with the inner
+        // pipeline. The recording command later writes into
+        // `self.raw_audio_sender` and the run loop sees the change
+        // through this shared `Arc`. Holding the `Arc` here keeps
+        // the slot alive across the `tokio::spawn`.
+        pipeline.raw_audio_sender = self.raw_audio_sender.clone();
 
         let handle = tokio::spawn(async move {
             pipeline.run().await

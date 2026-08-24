@@ -70,4 +70,25 @@ pub trait TranscriptionProvider: Send + Sync {
 
     /// Get the provider name (for logging/debugging)
     fn provider_name(&self) -> &'static str;
+
+    /// Streaming-mode append (default: not supported). Providers that
+    /// support real-time streaming — like sherpa-onnx with `OnlineStream` —
+    /// override this to accept raw audio samples continuously without
+    /// resetting the underlying stream. The default impl returns an
+    /// error so the worker falls back to the VAD-batched path for any
+    /// provider that hasn't been explicitly wired for streaming.
+    ///
+    /// ponytail: see the docstring on
+    /// `sherpa_engine::engine::SherpaEngine::accept_samples_for_streaming`
+    /// for the rationale. The point of this method is to let the
+    /// pipeline push raw audio without VAD chunking, so the user
+    /// sees a real word-flow rather than per-VAD-segment commits.
+    async fn accept_streaming_samples(
+        &self,
+        _samples: Vec<f32>,
+    ) -> std::result::Result<TranscriptResult, TranscriptionError> {
+        Err(TranscriptionError::EngineFailed(
+            "streaming not supported by this provider".to_string(),
+        ))
+    }
 }

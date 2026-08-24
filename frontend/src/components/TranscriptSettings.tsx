@@ -13,6 +13,7 @@ import { HotwordHitStatsPanel } from './HotwordHitStatsPanel';
 import { LLMDiagnosticsPanel } from './LLMDiagnosticsPanel';
 import { useDiarizationConfig } from '@/hooks/useDiarizationConfig';
 import { ParakeetModelManager } from './ParakeetModelManager';
+import { SherpaModelManager } from './SherpaModelManager';
 
 const MAX_HOTWORD_CHARS = 500;
 
@@ -52,7 +53,7 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
     }, [transcriptModelConfig.provider]);
 
     useEffect(() => {
-        if (transcriptModelConfig.provider === 'localWhisper' || transcriptModelConfig.provider === 'parakeet') {
+        if (transcriptModelConfig.provider === 'localWhisper' || transcriptModelConfig.provider === 'parakeet' || transcriptModelConfig.provider === 'sherpa') {
             setApiKey(null);
         }
     }, [transcriptModelConfig.provider]);
@@ -190,6 +191,33 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
         }
     };
 
+    const handleSherpaModelSelect = async (modelName: string) => {
+        // Always update config when model is selected, regardless of current provider
+        // ponytail: persist provider/model to SQLite-backed transcript
+        // settings. Without this, `api_get_transcript_config` keeps
+        // returning the previously-saved provider/model on the next
+        // recording, and the worker loads Whisper instead of the
+        // sherpa engine. Mirrors what WhisperModelManager already
+        // does in its saveModelSelection helper.
+        try {
+            await invoke('api_save_transcript_config', {
+                provider: 'sherpa',
+                model: modelName,
+                apiKey: null,
+            });
+        } catch (err) {
+            console.error('Failed to persist sherpa selection:', err);
+        }
+        setTranscriptModelConfig({
+            ...transcriptModelConfig,
+            provider: 'sherpa', // Ensure provider is set correctly
+            model: modelName
+        });
+        if (onModelSelect) {
+            onModelSelect();
+        }
+    };
+
     return (
         <div>
             <div>
@@ -218,6 +246,7 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                                 <SelectContent>
                                     <SelectItem value="parakeet">⚡ Parakeet (Recommended - Real-time / Accurate)</SelectItem>
                                     <SelectItem value="localWhisper">🏠 Local Whisper (High Accuracy)</SelectItem>
+                                    <SelectItem value="sherpa">🛰️ Sherpa-onnx Streaming (Real-time CPU)</SelectItem>
                                     {/* <SelectItem value="deepgram">☁️ Deepgram (Backup)</SelectItem>
                                     <SelectItem value="elevenLabs">☁️ ElevenLabs</SelectItem>
                                     <SelectItem value="groq">☁️ Groq</SelectItem>
@@ -225,7 +254,7 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                                 </SelectContent>
                             </Select>
 
-                            {uiProvider !== 'localWhisper' && uiProvider !== 'parakeet' && (
+                            {uiProvider !== 'localWhisper' && uiProvider !== 'parakeet' && uiProvider !== 'sherpa' && (
                                 <Select
                                     value={transcriptModelConfig.model}
                                     onValueChange={(value) => {
@@ -262,6 +291,16 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                             <ParakeetModelManager
                                 selectedModel={transcriptModelConfig.provider === 'parakeet' ? transcriptModelConfig.model : undefined}
                                 onModelSelect={handleParakeetModelSelect}
+                                autoSave={true}
+                            />
+                        </div>
+                    )}
+
+                    {uiProvider === 'sherpa' && (
+                        <div className="mt-6">
+                            <SherpaModelManager
+                                selectedModel={transcriptModelConfig.provider === 'sherpa' ? transcriptModelConfig.model : undefined}
+                                onModelSelect={handleSherpaModelSelect}
                                 autoSave={true}
                             />
                         </div>

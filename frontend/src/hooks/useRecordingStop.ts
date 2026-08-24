@@ -419,6 +419,16 @@ export function useRecordingStop(
       // isRecording already set to false at function start
       setIsRecordingDisabled(false);
     } finally {
+      // ponytail: always reset to IDLE so the overlay doesn't get
+      // stuck on Saving/Processing/Stopping when the success path's
+      // 2-second-after-navigation setTimeout never fires (e.g.
+      // transcription wait timed out at 60s and the `else` branch
+      // never ran, or the navigation target was already mounted).
+      // The setStatus calls above still win for normal flow; this
+      // is a safety net for the catch and timeout edges.
+      setTimeout(() => {
+        setStatus(RecordingStatus.IDLE);
+      }, 200);
       // Always reset the guard flag when done
       stopInProgressRef.current = false;
     }

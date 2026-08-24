@@ -4,8 +4,11 @@
 /// Used across database initialization, import, and retranscription.
 
 /// Default Whisper model for transcription when no preference is configured.
-/// This is the recommended balance of accuracy and speed.
-pub const DEFAULT_WHISPER_MODEL: &str = "large-v3-turbo";
+/// Quantized (Q5_0) is the new default: ~3x smaller than the f16 large-v3-turbo
+/// (547 MB vs 1549 MB), ~3-5x faster on CPU, near-identical accuracy. The
+/// unquantized f16 model is still selectable from the settings UI for users
+/// who want maximum accuracy and have the compute to spare.
+pub const DEFAULT_WHISPER_MODEL: &str = "large-v3-turbo-q5_0";
 
 /// Default Parakeet model for transcription when no preference is configured.
 /// This is the quantized version optimized for speed.
@@ -36,7 +39,7 @@ pub const WHISPER_MODEL_CATALOG: &[(&str, &str, u32, &str, &str, &str)] = &[
     ("small-q5_1", "ggml-small-q5_1.bin", 181, "Good", "Fast", "Quantized small model, faster than f16 version"),
 
     // Q5_0 quantized models (balanced speed/accuracy)
-    ("medium-q5_0", "ggml-medium-q5_0.bin", 514, "High", "Medium", "Quantized medium model, professional quality"),
-    ("large-v3-turbo-q5_0", "ggml-large-v3-turbo-q5_0.bin", 547, "High", "Medium", "Quantized large model, best balance"),
-    ("large-v3-q5_0", "ggml-large-v3-q5_0.bin", 1031, "High", "Slow", "Quantized large model, high accuracy"),
+    ("medium-q5_0", "ggml-medium-q5_0.bin", 514, "High", "Fast", "Quantized medium model, professional quality"),
+    ("large-v3-turbo-q5_0", "ggml-large-v3-turbo-q5_0.bin", 547, "High", "Fast", "Quantized large model, best speed/accuracy balance"),
+    ("large-v3-q5_0", "ggml-large-v3-q5_0.bin", 1031, "High", "Medium", "Quantized large model, high accuracy"),
 ];

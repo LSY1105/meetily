@@ -8,6 +8,15 @@ rustflags = [
     "-C", "link-arg=-mmacosx-version-min=14.2",
 ]
 
+# ponytail: removed the prior `+crt-static` rustflag — it caused llama.cpp's
+# cmake-built .lib to mismatch rustc's default-link CRT (linker errored on
+# `__imp_fmaxf`, `__imp_log2`, etc.). The workspace now uses dynamic CRT
+# uniformly: cmake builds llama.cpp with /MD (default), whisper-rs-sys uses
+# /MD, and rustc links msvcrt.lib by default. If RuntimeLibrary LNK2038
+# errors return, the right fix is upstream (whisper-rs-sys), not here.
+[target.x86_64-pc-windows-msvc]
+[target.aarch64-pc-windows-msvc]
+
 [env]
 MACOSX_DEPLOYMENT_TARGET = { value = "14.2", force = true }
 CMAKE_OSX_DEPLOYMENT_TARGET = "14.2"

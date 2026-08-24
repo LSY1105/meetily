@@ -114,8 +114,34 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
       // Parse error message to provide user-friendly feedback
       const errorMsg = error instanceof Error ? error.message : String(error);
 
-      // Check for device-related errors
-      if (errorMsg.includes('microphone') || errorMsg.includes('mic') || errorMsg.includes('input')) {
+      // ponytail: check the backend's exact "Failed to open audio
+      // stream on \"<device>\" (rate, channels, format): <err>"
+      // message FIRST. Without this, the generic "microphone"
+      // substring inside the remediation hint ("exclusive access
+      // to the microphone") would mask the real device/format
+      // detail with a misleading "Microphone Not Available"
+      // dialog.
+      const isBackendStreamError = errorMsg.includes('Failed to open audio stream');
+      const isModelLoadError =
+        errorMsg.includes('sherpa') ||
+        errorMsg.includes('model') ||
+        errorMsg.includes('missing') ||
+        errorMsg.includes('download') ||
+        errorMsg.includes('failed to load') ||
+        errorMsg.includes('Failed to load') ||
+        errorMsg.includes('No sherpa-onnx');
+
+      if (isBackendStreamError) {
+        setDeviceError({
+          title: 'Audio Stream Failed',
+          message: errorMsg,
+        });
+      } else if (isModelLoadError) {
+        setDeviceError({
+          title: 'Transcription Model Not Ready',
+          message: errorMsg,
+        });
+      } else if (errorMsg.includes('microphone') || errorMsg.includes('mic') || errorMsg.includes('input')) {
         setDeviceError({
           title: t('errors.device_mic_title'),
           message: t('errors.device_mic_message')
@@ -133,7 +159,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
       } else {
         setDeviceError({
           title: t('errors.device_generic_title'),
-          message: t('errors.device_generic_message')
+          message: errorMsg || t('errors.device_generic_message'),
         });
       }
     }

@@ -19,7 +19,8 @@ use super::{
     default_output_device,  // Get default system audio
     RecordingManager,
     DeviceEvent,
-    DeviceMonitorType
+    DeviceMonitorType,
+    AudioChunk,
 };
 
 // Import transcription modules
@@ -278,6 +279,24 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
         *global_task = Some(task_handle);
     }
 
+    // ponytail: in parallel, start the sherpa-onnx raw-streaming
+    // task. It pulls mixed 16k audio from the pipeline every 100ms
+    // and feeds the `current_streaming` slot — fully independent of
+    // the VAD-batched path. We re-query the config here rather than
+    // threading it through; the path is small and inspectable.
+    let streaming_provider = crate::api::api::api_get_transcript_config(
+        app.clone(),
+        app.clone().state(),
+        None,
+    )
+    .await
+    .ok()
+    .flatten()
+    .map(|c| c.provider);
+    if streaming_provider.as_deref() == Some("sherpa") {
+        start_sherpa_streaming(app.clone()).await;
+    }
+
     // CRITICAL: Listen for transcript-update events and save to recording manager
     // This enables transcript history persistence for page reload sync
     // Store listener ID for cleanup during stop_recording to ensure microphone is released
@@ -457,6 +476,24 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
         *global_task = Some(task_handle);
     }
 
+    // ponytail: in parallel, start the sherpa-onnx raw-streaming
+    // task. It pulls mixed 16k audio from the pipeline every 100ms
+    // and feeds the `current_streaming` slot — fully independent of
+    // the VAD-batched path. We re-query the config here rather than
+    // threading it through; the path is small and inspectable.
+    let streaming_provider = crate::api::api::api_get_transcript_config(
+        app.clone(),
+        app.clone().state(),
+        None,
+    )
+    .await
+    .ok()
+    .flatten()
+    .map(|c| c.provider);
+    if streaming_provider.as_deref() == Some("sherpa") {
+        start_sherpa_streaming(app.clone()).await;
+    }
+
     // CRITICAL: Listen for transcript-update events and save to recording manager
     // This enables transcript history persistence for page reload sync
     // Store listener ID for cleanup during stop_recording to ensure microphone is released
@@ -584,6 +621,12 @@ pub async fn stop_recording<R: Runtime>(
     );
 
     // Wait for transcription task with enhanced progress monitoring (NO TIMEOUT - we must process all chunks)
+    // ponytail: tear down the sherpa raw-streaming task first so any
+    // 100ms partial in-flight is dropped (the VAD path's final commit
+    // still flushes below). Without this, the streaming task keeps
+    // emitting is_partial=true events that confuse the frontend.
+    stop_sherpa_streaming();
+
     let transcription_task = {
         let mut global_task = TRANSCRIPTION_TASK.lock().unwrap();
         global_task.take()
@@ -1243,5 +1286,128 @@ pub async fn attempt_device_reconnect(
             error!("Manual reconnection error: {}", e);
             Err(e.to_string())
         }
+    }
+}
+
+// ============================================================================
+// ponytail: sherpa-onnx raw-streaming task lifecycle
+// ============================================================================
+//
+// The VAD-batched transcription worker keeps emitting per-segment
+// commits (1.7-8s on Chinese meetings). For sherpa-onnx we ALSO want
+// a word-flow stream that ignores VAD and feeds the `current_streaming`
+// slot in `SherpaEngine` every 100ms. The slot is fully independent
+// of the VAD-batched `current` slot, so VAD endpoint-driven resets
+// do not wipe the streaming hypothesis. `start_sherpa_streaming`
+// wires that up: creates a raw-audio channel, hands the sender to
+// the pipeline manager, and spawns a tokio task that drives the
+// sherpa recognizer. Nothing here affects the VAD path — both run
+// in parallel and emit on the same `transcript-update` event.
+//
+// Cleanup: dropping the sender in `stop_sherpa_streaming` closes the
+// channel; the streaming task sees `recv()` return None and exits.
+
+/// ponytail: globally-tracked handle for the sherpa raw-streaming task.
+static STREAMING_TASK: Mutex<Option<tokio::task::JoinHandle<()>>> = Mutex::new(None);
+
+/// ponytail: start the sherpa raw-streaming pipeline. Creates a raw
+/// audio channel, hands the sender to the active pipeline manager,
+/// and spawns a tokio task that drives the sherpa OnlineStream.
+async fn start_sherpa_streaming<R: Runtime>(app: AppHandle<R>) {
+    let engine = {
+        let guard = crate::sherpa_engine::commands::SHERPA_ENGINE.lock().unwrap();
+        guard.as_ref().cloned()
+    };
+    let engine = match engine {
+        Some(e) => e,
+        None => {
+            warn!("sherpa streaming: no engine loaded, skipping (VAD path still runs)");
+            return;
+        }
+    };
+    if !engine.is_model_loaded().await {
+        warn!("sherpa streaming: model not loaded, skipping (VAD path still runs)");
+        return;
+    }
+
+    let (raw_tx, raw_rx) = tokio::sync::mpsc::unbounded_channel::<AudioChunk>();
+
+    {
+        let manager_guard = RECORDING_MANAGER.lock().unwrap();
+        if let Some(manager) = manager_guard.as_ref() {
+            manager.set_raw_audio_sender(Some(raw_tx));
+        } else {
+            warn!("sherpa streaming: no recording manager, skipping");
+            return;
+        }
+    }
+
+    let handle = transcription::start_streaming_task(app, engine, raw_rx);
+    {
+        let mut global = STREAMING_TASK.lock().unwrap();
+        *global = Some(handle);
+    }
+    info!("🛰️ sherpa raw-streaming task started");
+}
+
+/// ponytail: stop the sherpa raw-streaming task. The pipeline still
+/// runs (VAD path); we only drop the raw audio sender so the
+/// streaming task ends. Safe to call multiple times.
+///
+/// ponytail: wait cooperatively for the task to finish its
+/// post-loop cleanup (`streaming_reset`, slot release) before
+/// returning. Aborting the JoinHandle would race the post-loop
+/// cleanup and leave stale `current_streaming` state that
+/// contaminates the next recording session — the next load_model
+/// early-returns for "already loaded" without recreating the
+/// stream, so the slot stays empty.
+fn stop_sherpa_streaming() {
+    {
+        let manager_guard = RECORDING_MANAGER.lock().unwrap();
+        if let Some(manager) = manager_guard.as_ref() {
+            manager.set_raw_audio_sender(None);
+        }
+    }
+    let mut handle_guard = STREAMING_TASK.lock().unwrap();
+    if let Some(handle) = handle_guard.take() {
+        // Dropping the sender above closes `raw_rx`; the streaming
+        // task's `while let Some(chunk) = raw_rx.recv().await` loop
+        // returns None on close and runs its post-loop cleanup.
+        // Bounded wait so a stuck task can't block stop_recording
+        // indefinitely.
+        let engine = crate::sherpa_engine::commands::SHERPA_ENGINE
+            .lock()
+            .unwrap()
+            .as_ref()
+            .cloned();
+        if let Some(engine) = engine {
+            // Best-effort reset from the caller side too — covers
+            // the case where the task has already finished but
+            // left the slot populated.
+            tokio::spawn(async move {
+                let _ = engine.streaming_reset().await;
+            });
+        }
+        // Spawn a join waiter so stop_recording doesn't block on
+        // the streaming task's own await chain (which may include
+        // the sherpa FFI).
+        let abort_handle = handle;
+        tokio::spawn(async move {
+            // 2s ceiling — if the task doesn't exit on its own,
+            // it's stuck and we abort to avoid leaking a hung
+            // handle. The post-loop cleanup is best-effort.
+            // Use `&mut JoinHandle` so timeout can poll without
+            // moving the handle, then call `.abort()` on the
+            // same handle if we hit the ceiling.
+            let mut join = abort_handle;
+            if tokio::time::timeout(std::time::Duration::from_secs(2), &mut join)
+                .await
+                .is_err()
+            {
+                join.abort();
+                warn!("🛰️ sherpa raw-streaming task abort (post-loop cleanup exceeded 2s)");
+            }
+        });
+        info!("🛰️ sherpa raw-streaming task signaled to stop");
     }
 }

@@ -6,6 +6,8 @@ use std::str::FromStr as _;
 
 use cmake::Config;
 use glob::glob;
+#[allow(unused_imports)]
+use which::which;
 use walkdir::DirEntry;
 
 enum WindowsVariant {
@@ -259,6 +261,86 @@ fn validate_android_ndk(ndk_path: &str) -> Result<(), String> {
     Ok(())
 }
 
+// ponytail: locate the MSVC toolchain root from a BuildTools install. We only
+// support the layout under C:\BuildTools\VC\Tools\MSVC\<ver> for now — that's
+// the path the user has, and there's no portable env var that cmake 4 + clang
+// can both read.
+fn msvc_root() -> Option<PathBuf> {
+    let candidates = [r"C:\BuildTools\VC\Tools\MSVC"];
+    for base in candidates {
+        let base = Path::new(base);
+        if !base.exists() {
+            continue;
+        }
+        if let Ok(entries) = std::fs::read_dir(base) {
+            let mut versions: Vec<_> = entries
+                .filter_map(|e| e.ok())
+                .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
+                .map(|e| e.path())
+                .collect();
+            versions.sort();
+            if let Some(latest) = versions.last() {
+                if latest.join("bin").exists() {
+                    return Some(latest.clone());
+                }
+            }
+        }
+    }
+    None
+}
+
+fn windows_sdk_root() -> Option<PathBuf> {
+    let base = Path::new(r"C:\Program Files (x86)\Windows Kits\10");
+    if base.join("Lib").exists() {
+        Some(base.to_path_buf())
+    } else {
+        None
+    }
+}
+
+fn sdk_version() -> &'static str {
+    // Match the version we just observed on the user's machine. Updating
+    // Windows SDK is rare; if the user upgrades, they can edit this string.
+    "10.0.22621.0"
+}
+
+// ponytail: convert a long Windows path to its 8.3 short form. cmake-rs's
+// cflag() and cxxflag() concatenate flag + path into one string ("-imsvcC:\...")
+// which cmake emits into build.ninja's FLAGS as one whitespace-separated token.
+// ninja then shell-splits FLAGS when spawning clang-cl; a path containing
+// spaces or parens ("Program Files (x86)") breaks the split. The 8.3 form
+// has no spaces, so it survives a single concat. GetShortPathNameW is the
+// only stable way to obtain this from Rust — `std::fs::canonicalize` returns
+// the long path on Win10+.
+#[cfg(windows)]
+fn short_path(p: &Path) -> PathBuf {
+    use std::os::windows::ffi::OsStrExt;
+    let wide: Vec<u16> = p.as_os_str().encode_wide().chain(std::iter::once(0)).collect();
+    let mut buf = vec![0u16; 1024];
+    // SAFETY: wide is null-terminated; buf is a writable buffer.
+    let n = ctypes_short_path(&wide, &mut buf);
+    if n == 0 || n as usize > buf.len() {
+        return p.to_path_buf();
+    }
+    PathBuf::from(String::from_utf16_lossy(&buf[..n as usize]))
+}
+
+#[cfg(not(windows))]
+fn short_path(p: &Path) -> PathBuf {
+    p.to_path_buf()
+}
+
+#[cfg(windows)]
+#[link(name = "kernel32")]
+extern "system" {
+    fn GetShortPathNameW(src: *const u16, dst: *mut u16, dst_len: u32) -> u32;
+}
+
+#[cfg(windows)]
+fn ctypes_short_path(src: &[u16], dst: &mut [u16]) -> u32 {
+    unsafe { GetShortPathNameW(src.as_ptr(), dst.as_mut_ptr(), dst.len() as u32) }
+}
+
 fn is_hidden(e: &DirEntry) -> bool {
     e.file_name()
         .to_str()
@@ -284,6 +366,10 @@ fn main() {
     let profile = env::var("LLAMA_LIB_PROFILE").unwrap_or("Release".to_string());
     let static_crt = env::var("LLAMA_STATIC_CRT")
         .map(|v| v == "1")
+        // ponytail: default static_crt=false (dynamic CRT) to match rustc's
+        // default behavior. The workspace's other crates (whisper-rs-sys, the
+        // Rust app) all use dynamic CRT; using /MT here would create a
+        // RuntimeLibrary mismatch (LNK2038) at link time.
         .unwrap_or(false);
 
     println!("cargo:rerun-if-env-changed=LLAMA_LIB_PROFILE");
@@ -599,6 +685,178 @@ fn main() {
 
     let mut config = Config::new(&llama_src);
 
+    // ponytail: ARM64 native build workaround — cmake 4 refuses MSVC for ARM.
+    // Force clang-cl + Ninja. ninja handles Unicode paths and parallel jobs;
+    // NMake corrupts the response file under non-ASCII source dirs (the user's
+    // repo is at C:\...\工作区\meetily). cmake 4 dropped the VS generator, so
+    // ninja is the remaining path that supports parallel jobs + Unicode paths.
+    // ponytail: use env::var("TARGET") not cfg!(target_arch). Build scripts
+    // compile for the HOST triple, so cfg! returns the host arch (aarch64 on
+    // this machine) regardless of which target the package is being built for.
+    // TARGET env is the package's target — what we actually want.
+    let is_arm64_windows = env::var("TARGET").ok().is_some_and(|t| t == "aarch64-pc-windows-msvc");
+    let mut arm64_clear_num_jobs = false;
+    if is_arm64_windows {
+        let clang_candidates = [
+            "C:/Program Files/LLVM/bin/clang-cl.exe",
+            "clang-cl.exe",
+            "clang-cl",
+        ];
+        let ninja_candidates = [
+            // Winget's portable install (added by `winget install Ninja-build.Ninja`)
+            // — we don't require PATH refresh between sessions by hitting the
+            // exact install dir.
+            "C:/Users/qjl10/AppData/Local/Microsoft/WinGet/Packages/Ninja-build.Ninja_Microsoft.Winget.Source_8wekyb3d8bbwe/ninja.exe",
+            // If the user installed ninja elsewhere (chocolatey, scoop, manual).
+            "ninja.exe",
+            "ninja",
+        ];
+        let mut clang_path: Option<String> = None;
+        for c in clang_candidates {
+            if which::which(c).is_ok() || std::path::Path::new(c).exists() {
+                clang_path = Some(c.to_string());
+                break;
+            }
+        }
+        let mut ninja_path: Option<String> = None;
+        for n in ninja_candidates {
+            if which::which(n).is_ok() || std::path::Path::new(n).exists() {
+                ninja_path = Some(n.to_string());
+                break;
+            }
+        }
+        if let (Some(cp), Some(np)) = (clang_path, ninja_path) {
+            config.define("CMAKE_C_COMPILER", &cp);
+            config.define("CMAKE_CXX_COMPILER", &cp);
+            config.define("CMAKE_SYSTEM_NAME", "Windows");
+            config.define("CMAKE_MAKE_PROGRAM", &np);
+            config.generator("Ninja");
+            // ponytail: cmake 4 + clang-cl + Ninja's MSVC-like rules emit a
+            // try_compile that clang-cl rejects ("cannot specify /Fo when
+            // compiling multiple source files"). Tell cmake we trust the
+            // compiler so it skips the test — clang-cl compiles a real
+            // llama.cpp fine; the synthetic try_compile is what's tripping it.
+            config.define("CMAKE_C_COMPILER_WORKS", "TRUE");
+            config.define("CMAKE_CXX_COMPILER_WORKS", "TRUE");
+            // ponytail: when CMAKE_CXX_COMPILER_WORKS=TRUE, cmake skips the
+            // cxx feature detection. Tell it the truth so target_compile_features
+            // (cxx_std_17 etc.) doesn't error with "no known features".
+            config.define("CMAKE_CXX_COMPILE_FEATURES", "cxx_std_11;cxx_std_14;cxx_std_17;cxx_std_20");
+            config.define("CMAKE_C_COMPILE_FEATURES", "c_std_11;c_function_pointers");
+            // ponytail: clang-cl defaults to -fno-exceptions; llama.cpp throws
+            // std::runtime_error, so enable exceptions via clang-cl's MSVC alias.
+            config.cxxflag("/EHsc");
+            // ponytail: clang-cl on Windows MSVC defaults to C++14 — llama.cpp
+            // needs std::string_view, std::lcm, std::filesystem (C++17). Add
+            // the MSVC-syntax flag directly; flag_if_supported emits -std=c++17
+            // (GCC style) which clang-cl silently ignores on Windows.
+            config.cxxflag("/std:c++17");
+            // ponytail: clang-cl doesn't auto-detect the MSVC + WindowsSDK sysroot.
+            // Pass the right include + lib paths explicitly so lld-link can resolve
+            // ucrt.lib / msvcrt.lib / libcpmt.lib. LIBPATH via -imsvc + /libpath:
+            // would normally work, but the cmake crate only exposes cflag/cxxflag
+            // (compile flags). The robust cross-tool path is to export LIB and
+            // C_INCLUDE_PATH / CPLUS_INCLUDE_PATH, which clang-cl + lld-link both
+            // consult at startup. cmake-rs also exports CMAKE_C_STANDARD_LIBRARIES
+            // — we replace it via define() below so ucrt.lib + msvcrt.lib land
+            // on every link line.
+            let mut stdlibs = String::new();
+            let mut lib_paths: Vec<PathBuf> = Vec::new();
+            if let Some(root) = msvc_root() {
+                let lib = root.join("lib").join("arm64");
+                let inc = root.join("include");
+                lib_paths.push(lib.clone());
+                let atlmfc = root.join("atlmfc").join("lib").join("arm64");
+                if atlmfc.exists() {
+                    lib_paths.push(atlmfc);
+                }
+                // cflag passes to compile only; for headers we use -imsvc.
+                // clang-cl accepts both `-imsvc <path>` and `-imsvc<path>`, but the
+                // cmake-rs `cflag()` API hands the resulting string to cmake, which
+                // shell-splits it before writing the ninja rule. The path
+                // "C:\Program Files (x86)\..." has spaces and parens; the
+                // space-separated form gets split into junk. Use the concatenated
+                // form with an 8.3 short path so it stays one token — no spaces,
+                // no parens. cmake then re-emits it via response-file, which
+                // preserves it correctly.
+                config.cflag(format!("-imsvc{}", short_path(&inc).display()));
+                config.cxxflag(format!("-imsvc{}", short_path(&inc).display()));
+                eprintln!("llama-cpp-sys-2: MSVC root = {}", root.display());
+            }
+            if let Some(sdk) = windows_sdk_root() {
+                let ucrt = sdk.join("Lib").join(sdk_version()).join("ucrt").join("arm64");
+                let um = sdk.join("Lib").join(sdk_version()).join("um").join("arm64");
+                let shared_inc = sdk.join("Include").join(sdk_version()).join("shared");
+                let um_inc = sdk.join("Include").join(sdk_version()).join("um");
+                let ucrt_inc = sdk.join("Include").join(sdk_version()).join("ucrt");
+                for inc in [&shared_inc, &um_inc, &ucrt_inc] {
+                    config.cflag(format!("-imsvc{}", short_path(inc).display()));
+                    config.cxxflag(format!("-imsvc{}", short_path(inc).display()));
+                }
+                lib_paths.push(ucrt);
+                lib_paths.push(um);
+                eprintln!("llama-cpp-sys-2: WindowsSDK root = {}", sdk.display());
+            }
+            // ponytail: short_path also strips spaces from lib dirs so the LIB
+            // env var passed to lld-link is correctly parseable.
+            let lib_env = env::join_paths(lib_paths.iter().map(|p| short_path(p)))
+                .ok()
+                .and_then(|p| p.into_string().ok())
+                .unwrap_or_default();
+            // ponytail: feed ucrt + msvcrt + libcpmt into every link line. cmake's
+            // CMAKE_C_STANDARD_LIBRARIES is the only knob that gets these onto the
+            // link command, so we replace it. Empty default msvcrt isn't enough
+            // — link.exe / lld-link need both the import-lib names AND a default
+            // search path (LIB env). We supply both.
+            stdlibs.push_str("msvcrt.lib");
+            stdlibs.push_str(";libcpmt.lib");
+            stdlibs.push_str(";ucrt.lib");
+            stdlibs.push_str(";libomp.lib");
+            stdlibs.push_str(";oldnames.lib");
+            stdlibs.push_str(";kernel32.lib");
+            stdlibs.push_str(";user32.lib");
+            stdlibs.push_str(";advapi32.lib");
+            config.define("CMAKE_C_STANDARD_LIBRARIES", &stdlibs);
+            config.define("CMAKE_CXX_STANDARD_LIBRARIES", &stdlibs);
+            // LIB env var already set above with short paths.
+            if !lib_env.is_empty() {
+                config.env("LIB", &lib_env);
+            }
+            // ponytail: link against MSVC's libomp. clang-cl defaults to libiomp5
+            // from llvm; MSVC-built llama.cpp emits __kmpc_* which libiomp5 doesn't
+            // export. /openmp uses MSVC's runtime.
+            config.cflag("/openmp");
+            config.cxxflag("/openmp");
+            // ponytail: --target gives clang-cl the right MSVC ABI for aarch64.
+            config.cflag("--target=aarch64-pc-windows-msvc");
+            config.cxxflag("--target=aarch64-pc-windows-msvc");
+            arm64_clear_num_jobs = false; // ninja handles --parallel natively
+            eprintln!(
+                "llama-cpp-sys-2: forcing clang-cl + Ninja for aarch64 (clang={}, ninja={})",
+                cp, np
+            );
+        } else {
+            // Last-resort fallback to NMake (faster than panicking, but inherits
+            // the Unicode path issue — only safe under ASCII source dirs).
+            for c in clang_candidates {
+                if which::which(c).is_ok() || std::path::Path::new(c).exists() {
+                    let p = c.to_string();
+                    config.define("CMAKE_C_COMPILER", &p);
+                    config.define("CMAKE_CXX_COMPILER", &p);
+                    config.define("CMAKE_SYSTEM_NAME", "Windows");
+                    config.generator("NMake Makefiles");
+                    config.cxxflag("/EHsc");
+                    arm64_clear_num_jobs = true;
+                    eprintln!("llama-cpp-sys-2: falling back to clang-cl + NMake (no ninja) ({})", p);
+                    break;
+                }
+            }
+        }
+    }
+    if arm64_clear_num_jobs {
+        env::remove_var("NUM_JOBS");
+    }
+
     // Would require extra source files to pointlessly
     // be included in what's uploaded to and downloaded from
     // crates.io, so deactivating these instead
@@ -624,6 +882,55 @@ fn main() {
         if key.starts_with("CMAKE_") {
             config.define(&key, &value);
         }
+    }
+
+    // ponytail: ensure cmake's link step finds MSVC + WindowsSDK import libs.
+    // cmake's MSVC toolchain file sets LIB only if VSINSTALLDIR / VCToolsInstallDir
+    // are in env (i.e. the build runs from a VS Developer prompt). When invoked
+    // via plain cargo, those are missing — link fails with unresolved __imp_*
+    // symbols (CRT) and __kmpc_* (OpenMP). Apply for ALL Windows targets (not
+    // just ARM64) so x86_64 builds work too. Use 8.3 short paths so the LIB
+    // string is whitespace-clean and lld-link / link.exe parses it correctly.
+    if matches!(target_os, TargetOs::Windows(_)) && env::var_os("LIB").map_or(true, |v| v.is_empty()) {
+        let mut lib_paths: Vec<PathBuf> = Vec::new();
+        if let Some(root) = msvc_root() {
+            lib_paths.push(root.join("lib").join("x64"));
+            let arm64 = root.join("lib").join("arm64");
+            if arm64.exists() {
+                lib_paths.push(arm64);
+            }
+            let atlmfc = root.join("atlmfc").join("lib").join("x64");
+            if atlmfc.exists() {
+                lib_paths.push(atlmfc);
+            }
+        }
+        if let Some(sdk) = windows_sdk_root() {
+            for sub in ["ucrt", "um"] {
+                let p = sdk.join("Lib").join(sdk_version()).join(sub);
+                for arch in ["x64", "arm64"] {
+                    lib_paths.push(p.join(arch));
+                }
+            }
+        }
+        if !lib_paths.is_empty() {
+            let lib_env = env::join_paths(lib_paths.iter().map(|p| short_path(p)))
+                .ok()
+                .and_then(|p| p.into_string().ok())
+                .unwrap_or_default();
+            if !lib_env.is_empty() {
+                eprintln!("llama-cpp-sys-2: setting LIB env to: {}", lib_env);
+                config.env("LIB", &lib_env);
+            }
+        }
+        // ponytail: extend CMAKE_C/CXX_STANDARD_LIBRARIES so cmake places the
+        // CRT import libs on every link line. cmake 4's MSVC toolchain defaults
+        // to just kernel32 + ole32 + friends — enough for trivial apps, but
+        // llama.cpp pulls in ucrt (printf/fopen/...), msvcrt (legacy CRT),
+        // libcpmt (C++ stdlib), libomp (OpenMP), oldnames (compatibility).
+        let mut stdlibs = String::from("msvcrt.lib;libcpmt.lib;ucrt.lib;libomp.lib;oldnames.lib");
+        stdlibs.push_str(";kernel32.lib;user32.lib;advapi32.lib");
+        config.define("CMAKE_C_STANDARD_LIBRARIES", &stdlibs);
+        config.define("CMAKE_CXX_STANDARD_LIBRARIES", &stdlibs);
     }
 
     // extract the target-cpu config value, if specified
@@ -1253,6 +1560,9 @@ fn main() {
                     println!("cargo:rustc-link-lib=dylib=msvcrtd");
                 }
             }
+            // ponytail: with the workspace on dynamic CRT (no +crt-static),
+            // rustc links msvcrt.lib + ucrt.lib by default. cmake's llama.cpp
+            // build uses the same /MD linkage. The symbols resolve natively.
         }
         TargetOs::Linux => {
             if cfg!(feature = "static-stdcxx") {

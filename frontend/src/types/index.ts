@@ -19,6 +19,20 @@ export interface Transcript {
   /** PR-44a: realtime speaker hint; dropped once the offline label arrives. */
   transient_speaker?: string | null;
   speaker?: string | null;
+  // ponytail: wall-clock ms when the frontend buffered this entry;
+  // processBufferedTranscripts uses it for stale-vs-recent. `id`
+  // format isn't stable enough (sequence_id / seg_N / Date.now())
+  // to parse for a date prefix reliably.
+  buffered_at?: number;
+  // ponytail: iFlytek sentence protocol. sentence_id is the stable
+  // key the frontend uses to dedup/merge messages for one sentence
+  // (Begin, Mid*, Full). sentence_status drives the rendering
+  // style: Begin/Mid render as grey-italic streaming text, Full as
+  // normal dark text. Replace-by-sentence_id keeps React rows stable
+  // across the streaming Mid* updates for the same sentence, which
+  // is what stops the "前面字抖动" reflow the user kept seeing.
+  sentence_id?: number;
+  sentence_status?: 'Begin' | 'Mid' | 'Full';
 }
 export type DiarizationModelStatus = 'ready' | 'loading' | 'failed' | 'disabled';
 
@@ -31,6 +45,11 @@ export interface DiarizationConfig {
 
 
 export interface TranscriptUpdate {
+  // ponytail: iFlytek append-only protocol. For Mid events, `text` is
+  // the NEWLY recognized suffix since the previous Mid for the same
+  // `sentenceId`; the frontend appends it to the existing row so
+  // front text never reflows. For Full events, `text` is the full
+  // cumulative sentence. For Begin events, `text` is "".
   text: string;
   timestamp: string; // Wall-clock time for reference
   source: string;
@@ -42,6 +61,12 @@ export interface TranscriptUpdate {
   audio_start_time: number; // Seconds from recording start
   audio_end_time: number;   // Seconds from recording start
   duration: number;          // Segment duration in seconds
+  // ponytail: iFlytek sentence protocol. `sentenceId` is the
+  // dedup key the frontend uses to merge messages for one
+  // sentence (Begin, Mid*, Full). `sentenceStatus` carries the
+  // role of this message in the sentence lifecycle.
+  sentenceId?: number;
+  sentenceStatus?: 'Begin' | 'Mid' | 'Full';
 }
 
 export interface Block {
@@ -126,4 +151,10 @@ export interface TranscriptSegmentData {
   corrected_text?: string;
   postprocess_failed?: boolean;
   postprocess_failed_message?: string;
+  // ponytail: iFlytek sentence protocol fields, carried over from
+  // the upstream Transcript row so the virtualized view can render
+  // streaming vs committed style and React-key by sentence_id.
+  sentence_id?: number;
+  sentence_status?: 'Begin' | 'Mid' | 'Full';
+  sequence_id?: number;
 }

@@ -4,6 +4,7 @@ import { Transcript } from '@/types';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useHotwords } from '@/hooks/useHotwords';
 import { wrapHotwords } from '@/lib/wrapHotwords';
+import { punctuateCJK } from '@/lib/punctuateCJK';
 import { toast } from 'sonner';
 import { useTranslations } from 'next-intl';
 import { ConfidenceIndicator } from './ConfidenceIndicator';
@@ -128,7 +129,15 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({ transcripts, isR
     fullText: string;
   } | null>(null);
   const streamingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const lastStreamedIdRef = useRef<string | null>(null); // Track which transcript we've streamed
+  // ponytail: track the (id, text-length) of the last row we
+  // streamed, not just the id. iFlytek-style Mid updates append to
+  // the SAME sentence row (same sentence_id, growing text), and the
+  // typewriter animation needs to re-trigger on every text growth —
+  // not just on first appearance. The id-only check (previous
+  // behaviour) only fired when sherpa committed a new sentence,
+  // which meant Mid partials updated React state silently with no
+  // visible character-by-character reveal.
+  const lastStreamedKeyRef = useRef<string | null>(null);
 
   // Load preference for showing confidence indicator
   const { rules: hotwords, protectedSet } = useHotwords();
@@ -193,7 +202,7 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({ transcripts, isR
         streamingIntervalRef.current = null;
       }
       setStreamingTranscript(null);
-      lastStreamedIdRef.current = null;
+      lastStreamedKeyRef.current = null;
       return;
     }
 
@@ -203,25 +212,41 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({ transcripts, isR
 
     if (!latestTranscript) return;
 
-    // Check if this is a new transcript we haven't streamed yet (using ref to avoid dependency issues)
-    if (lastStreamedIdRef.current !== latestTranscript.id) {
+    // ponytail: re-trigger typewriter on every text growth, not just
+    // new sentence id. The streaming task in worker.rs appends Mid
+    // deltas to the SAME sentence row (same id, growing text length)
+    // — without re-keying on length, the animation would only run on
+    // the first appearance of a sentence and then go silent until
+    // the next commit. Keying on `id:length` makes every text growth
+    // restart the in-place reveal so the user sees each new chunk
+    // of hypothesis as it streams in.
+    const streamKey = `${latestTranscript.id}:${latestTranscript.text.length}`;
+    if (lastStreamedKeyRef.current !== streamKey) {
       // Clear any existing streaming interval
       if (streamingIntervalRef.current) {
         clearInterval(streamingIntervalRef.current);
         streamingIntervalRef.current = null;
       }
 
-      // Mark this transcript as being streamed
-      lastStreamedIdRef.current = latestTranscript.id;
+      // Mark this (id, length) as being streamed
+      lastStreamedKeyRef.current = streamKey;
 
       const fullText = latestTranscript.text;
 
-      // Fast typewriter effect - complete in 0.8 seconds for snappy feel
-      const TOTAL_DURATION_MS = 800; // 0.8 seconds total - fast and snappy!
-      const INTERVAL_MS = 15; // Update every 15ms for smooth animation
-      const totalTicks = TOTAL_DURATION_MS / INTERVAL_MS; // ~53 ticks
-      const charsPerTick = Math.max(2, Math.ceil(fullText.length / totalTicks)); // At least 2 chars per tick for speed
-      const INITIAL_CHARS = Math.min(5, fullText.length); // Start with first 5 chars visible
+      // ponytail: typewriter cadence. sherpa-onnx Zip only emits
+      // hypothesis text on endpoint, so the streaming task delivers
+      // the FULL sentence at once — not the per-token partials
+      // iFlytek-style captions expect. To compensate, the frontend
+      // always animates the in-place reveal at a steady 12
+      // chars/second regardless of sentence length, so a 30-char
+      // sentence takes ~2.5 s to type out and a 60-char sentence
+      // takes ~5 s. The user sees a clear character-by-character
+      // pulse on every commit, matching the cadence of a real
+      // streaming caption console.
+      const CHARS_PER_SECOND = 12;
+      const INTERVAL_MS = 50; // 20 Hz tick
+      const charsPerTick = Math.max(1, Math.ceil((CHARS_PER_SECOND * INTERVAL_MS) / 1000));
+      const INITIAL_CHARS = Math.min(1, fullText.length); // Show first 1 char immediately
       let charIndex = INITIAL_CHARS;
 
       setStreamingTranscript({
@@ -258,7 +283,7 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({ transcripts, isR
         clearInterval(streamingIntervalRef.current);
         streamingIntervalRef.current = null;
       }
-      lastStreamedIdRef.current = null;
+      lastStreamedKeyRef.current = null;
     };
   }, []);
 
@@ -278,17 +303,34 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({ transcripts, isR
         const textToShow = isStreaming ? streamingTranscript.visibleText : transcript.text;
         // Clean up text for display - remove repetitions and filler words
         const filteredText = cleanStopWords(textToShow);
-        // Show [Silence] ONLY if the ORIGINAL transcript was empty (not just after filtering)
+        // ponytail: skip rendering rows whose text is empty AND we
+        // don't have a streaming animation in flight. The streaming
+        // pipeline used to emit `[Silence]`-placeholder rows for
+        // VAD-only chunks; even after the backend filter on save,
+        // the live in-memory transcript list still carries them
+        // until recording stops, and an empty row with just a
+        // timestamp breaks the meeting timeline visually.
         const originalWasEmpty = transcript.text.trim() === '';
-        const displayText = originalWasEmpty && !isStreaming ? '[Silence]' : filteredText;
+        if (originalWasEmpty && !isStreaming) return null;
+        const displayText = filteredText;
+        // ponytail: insert CJK punctuation for readability. Pure
+        // string transform — never mutates already-emitted chars so
+        // the streaming `strip_prefix` check stays valid. Sizer keeps
+        // using `displayText` since punctuation width is constant.
+        const punctuated = punctuateCJK(displayText);
 
         // Sizer text: use cleaned version for proper sizing, fallback to [Silence] only if original was empty
         const sizerText = cleanStopWords(isStreaming ? streamingTranscript.fullText : transcript.text)
-          || (originalWasEmpty && !isStreaming ? '[Silence]' : '');
+          || (originalWasEmpty && !isStreaming ? '' : '');
 
         return (
           <motion.div
-            key={transcript.id ? `${transcript.id}-${index}` : `transcript-${index}`}
+            // ponytail: key on sequence_id when present so that the
+            // streaming task's repeated partials (same sequence_id, new
+            // text) reuse the same DOM node and the framer-motion
+            // initial/animate does not replay on every chunk. Falling
+            // back to index keeps legacy segments stable.
+            key={transcript.sequence_id !== undefined ? `seq-${transcript.sequence_id}` : `transcript-${index}`}
             initial={{ opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.15 }}
@@ -318,29 +360,14 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({ transcripts, isR
                 </TooltipContent>
               </Tooltip>
               <div className="flex-1">
-                {isStreaming ? (
-                  // Streaming transcript - show in bubble (full width)
-                  <div className="bg-gray-100 border border-gray-200 rounded-lg px-3 py-2">
-                    <div className="relative">
-                      <p className="text-base text-gray-800 leading-relaxed" style={{ visibility: 'hidden' }}>
-                        {sizerText}
-                      </p>
-                      <p className="text-base text-gray-800 leading-relaxed absolute top-0 left-0">
-                        {wrapHotwords(displayText, hotwords, handleHotwordCopy, protectedSet).nodes}
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  // Regular transcript - simple text
                   <div className="relative">
                     <p className="text-base text-gray-800 leading-relaxed" style={{ visibility: 'hidden' }}>
                       {sizerText}
                     </p>
                     <p className="text-base text-gray-800 leading-relaxed absolute top-0 left-0">
-                      {displayText}
+                      {wrapHotwords(punctuated, hotwords, handleHotwordCopy, protectedSet).nodes}
                     </p>
                   </div>
-                )}
               </div>
             </div>
           </motion.div>

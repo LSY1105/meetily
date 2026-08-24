@@ -107,12 +107,10 @@ ort = { version = "2.0.0-rc.10" }  # ONNX Runtime for Parakeet models
 thiserror = "2.0.16"                # Error handling for Parakeet
 
 # sherpa-onnx (streaming Chinese/English ASR via Zipformer transducer).
-# Static link keeps the binary self-contained; on Windows MSVC this pulls in
-# a pre-built onnxruntime via the bundled C library. NOTE: upstream
-# sherpa-onnx-sys does not yet ship prebuilt libs for aarch64-pc-windows-msvc,
-# so the dep is restricted to x86_64 Windows / macOS / Linux. Windows-on-ARM
-# dev hosts will compile without the sherpa engine; users on ARM Windows
-# can still use whisper and parakeet. See the `sherpa_engine` module.
+# Pinned to 1.13.4 — same version across the whole workspace, including
+# aarch64-pc-windows-msvc. The C++ library is built from source on
+# aarch64-pc-windows-msvc because upstream 1.13.x dropped the win-arm64
+# prebuilt (last prebuilt was 1.12.x). See patches/sherpa-onnx-sys-1.13.4/.
 bzip2 = "0.4"                       # bz2 decoder for sherpa model archives
 tar = "0.4"                         # tar extractor for sherpa model archives
 
@@ -199,10 +197,9 @@ sherpa-onnx = { version = "1.13.4", default-features = false, features = ["stati
 [target.'cfg(target_os = "windows")'.dependencies]
 whisper-rs = { version = "0.13.2", features = ["raw-api"] }
 futures-channel = "0.3.31"
-# sherpa-onnx upstream prebuilts only exist for win-x64; gate to x86_64 so
-# aarch64-pc-windows-msvc dev hosts can still build (without the sherpa
-# engine, falling back to whisper/parakeet at runtime).
-[target.'cfg(all(target_os = "windows", target_arch = "x86_64"))'.dependencies]
+# sherpa-onnx on Windows: x86_64 uses upstream v1.13.4 prebuilts; aarch64
+# builds the C++ library from source via a build.rs patch in
+# patches/sherpa-onnx-sys-1.13.4/ (upstream dropped the win-arm64 prebuilt).
 sherpa-onnx = { version = "1.13.4", default-features = false, features = ["static"] }
 
 # Linux-specific dependencies
@@ -223,11 +220,3 @@ infer = "0.15"
 criterion = { version = "0.5.1", features = ["async_tokio"] }
 memory-stats = "1.0"
 strsim = "0.10.0"
-futures = "0.3.31"
-tracing-subscriber = "0.3.16"
-
-# NOTE: cargo ignores [patch] in non-root workspace members (see `cargo metadata`
-# warning). whisper-rs-sys is patched at the workspace root Cargo.toml instead.
-[patch.crates-io]
-cpal = { git = "https://github.com/RustAudio/cpal", rev = "51c3b43" }
-esaxx-rs = { git = "https://github.com/thewh1teagle/esaxx-rs.git", branch = "feat/dynamic-msvc-link" }

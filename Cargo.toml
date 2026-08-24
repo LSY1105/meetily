@@ -28,6 +28,19 @@ tokio = { version = "1.32.0", features = ["full"] }
 # uses `try` (C++ exceptions), so without /EHsc the build fails with
 # "cannot use 'try' with exceptions disabled". Local patch adds
 # common_wrapper_build.flag("/EHsc") and the equivalent for mtmd.
+#
+# sherpa-onnx-sys 1.13.4's build.rs has no archive_name() case for
+# aarch64-pc-windows-msvc (upstream dropped the win-arm64 prebuilt in
+# 1.13.x). Local patch adds a branch that pulls the upstream C++ source
+# tarball and runs cmake + clang-cl + Ninja to build a fresh static
+# archive on the host. C ABI matches the 1.13.4 Rust bindings exactly
+# because they were generated from the same c-api.h. First build is
+# slow (full sherpa-onnx + onnxruntime + kaldi ~30-60 min); incremental
+# builds after that are 5-10 min. SHERPA_ONNX_NO_SOURCE_BUILD=1
+# disables the fallback and lets cargo fail loudly instead. Set
+# SHERPA_ONNX_SRC_DIR to an already-extracted source tree to skip
+# the tarball download.
 [patch.crates-io]
 whisper-rs-sys = { path = "patches/whisper-rs-sys-0.11.1" }
 llama-cpp-sys-2 = { path = "patches/llama-cpp-sys-2-0.1.152" }
+sherpa-onnx-sys = { path = "patches/sherpa-onnx-sys-1.13.4" }

@@ -5,9 +5,11 @@
 
 /**
  * Default Whisper model for transcription when no preference is configured.
- * This is the recommended balance of accuracy and speed.
+ * Quantized (Q5_0): ~3x smaller than f16 large-v3-turbo (547 MB vs 1549 MB),
+ * ~3-5x faster on CPU, near-identical accuracy. Keep in sync with
+ * DEFAULT_WHISPER_MODEL in src-tauri/src/config.rs.
  */
-export const DEFAULT_WHISPER_MODEL = 'large-v3-turbo';
+export const DEFAULT_WHISPER_MODEL = 'large-v3-turbo-q5_0';
 
 /**
  * Default Parakeet model for transcription when no preference is configured.

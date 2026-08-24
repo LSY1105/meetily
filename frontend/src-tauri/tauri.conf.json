@@ -5,7 +5,7 @@
     "identifier": "com.meetily.ai",
     "build": {
         "frontendDist": "../out",
-        "devUrl": "http://localhost:3118",
+        "devUrl": "tauri://localhost",
         "beforeDevCommand": "pnpm dev",
         "beforeBuildCommand": "pnpm build"
     },
@@ -18,7 +18,8 @@
                 "resizable": true,
                 "fullscreen": false,
                 "theme": "Light",
-                "decorations": true
+                "decorations": true,
+                "url": "tauri://localhost/index.html"
             }
         ],
         "macOSPrivateApi": true,
@@ -32,7 +33,8 @@
             "assetProtocol": {
                 "enable": true,
                 "scope": [
-                    "$APPDATA/**"
+                    "$APPDATA/**",
+                    "**"
                 ]
             },
             "capabilities": [

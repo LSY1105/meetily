@@ -5,10 +5,13 @@
 use super::engine::TranscriptionEngine;
 use super::provider::TranscriptionError;
 use crate::audio::AudioChunk;
+use crate::sherpa_engine::SherpaEngine;
 use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::Instant;
 use tauri::{AppHandle, Emitter, Runtime};
 
 // Sequence counter for transcript updates
@@ -21,6 +24,22 @@ static SPEECH_DETECTED_EMITTED: AtomicBool = AtomicBool::new(false);
 pub fn reset_speech_detected_flag() {
     SPEECH_DETECTED_EMITTED.store(false, Ordering::SeqCst);
     info!("🔍 SPEECH_DETECTED_EMITTED reset to: {}", SPEECH_DETECTED_EMITTED.load(Ordering::SeqCst));
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub enum SentenceStatus {
+    /// `bg=1` — a new sentence is starting. `text` is empty or a
+    /// placeholder; the frontend renders this as the streaming/in-
+    /// progress grey-italic row.
+    Begin,
+    /// `rst=mid` — provisional hypothesis for the current sentence.
+    /// Frontend can ignore this by default; if shown, it is grey/italic
+    /// and updated in place by `sentence_id`.
+    Mid,
+    /// `rst=full` + `ed=1` — sentence is complete. `text` is the final
+    /// hypothesis for `sentence_id`; frontend renders this in normal
+    /// dark text.
+    Full,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -41,6 +60,15 @@ pub struct TranscriptUpdate {
     // the value is advisory and the frontend renders it with a badge.
     #[serde(skip_serializing_if = "Option::is_none", rename = "transientSpeaker")]
     pub transient_speaker: Option<String>,
+    // ponytail: iFlytek-style sentence protocol. `sentence_id` is the
+    // stable key the frontend uses to dedup/merge messages for one
+    // sentence (Begin, Mid*, Full). `sentence_status` carries the role
+    // of this message in the sentence lifecycle. See comment on
+    // SentenceStatus above.
+    #[serde(rename = "sentenceId")]
+    pub sentence_id: u32,
+    #[serde(rename = "sentenceStatus")]
+    pub sentence_status: SentenceStatus,
 }
 
 // NOTE: get_transcript_history and get_recording_meeting_name functions
@@ -87,7 +115,6 @@ pub fn start_transcription_task<R: Runtime>(
             let engine_clone = match &transcription_engine {
                 TranscriptionEngine::Whisper(e) => TranscriptionEngine::Whisper(e.clone()),
                 TranscriptionEngine::Parakeet(e) => TranscriptionEngine::Parakeet(e.clone()),
-                #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
                 TranscriptionEngine::Sherpa(e) => TranscriptionEngine::Sherpa(e.clone()),
                 TranscriptionEngine::Provider(p) => TranscriptionEngine::Provider(p.clone()),
             };
@@ -168,7 +195,6 @@ pub fn start_transcription_task<R: Runtime>(
                                     let confidence_threshold = match &engine_clone {
                                         TranscriptionEngine::Whisper(_) | TranscriptionEngine::Provider(_) => 0.3,
                                         TranscriptionEngine::Parakeet(_) => 0.0, // Parakeet has no confidence, accept all
-                                        #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
                                         TranscriptionEngine::Sherpa(_) => 0.0, // Sherpa has no confidence, accept all
                                     };
 
@@ -249,6 +275,16 @@ pub fn start_transcription_task<R: Runtime>(
                                             audio_start_time,
                                             audio_end_time,
                                             duration: chunk_duration,
+                                            // ponytail: non-streaming engines
+                                            // (Whisper/Parakeet) emit full
+                                            // sentences directly, not
+                                            // Begin/Mid/Full lifecycle.
+                                            // Use sequence_id as the
+                                            // sentence_id so the
+                                            // frontend dedups the same
+                                            // way it does for streaming.
+                                            sentence_id: sequence_id as u32,
+                                            sentence_status: SentenceStatus::Full,
                                         };
 
                                         if let Err(e) = app_clone.emit("transcript-update", &update)
@@ -554,59 +590,23 @@ async fn transcribe_chunk_with_provider<R: Runtime>(
                 }
             }
         }
-        #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
-        TranscriptionEngine::Sherpa(sherpa_engine) => {
-            // Sherpa-onnx is incremental streaming: we feed the chunk and get
-            // back the current best hypothesis. The provider pattern wraps
-            // accept_waveform + endpoint-driven reset, so we just call it.
-            match sherpa_engine
-                .accept_waveform(speech_samples.clone(), 16_000)
-                .await
-            {
-                Ok(result) => {
-                    let cleaned_text = result.text.trim().to_string();
-                    let is_partial = result.is_partial;
-                    if cleaned_text.is_empty() {
-                        return Ok((String::new(), None, is_partial));
-                    }
-
-                    info!(
-                        "Sherpa transcription for chunk {}: '{}' (partial: {}, endpoint: {})",
-                        chunk.chunk_id, cleaned_text, is_partial, result.is_endpoint
-                    );
-
-                    // Commit-and-reset on endpoint so the next utterance
-                    // starts clean. The text we return is the final text for
-                    // this utterance; the worker's `is_partial = false`
-                    // signals that this segment is committed.
-                    if result.is_endpoint {
-                        if let Err(e) = sherpa_engine.reset().await {
-                            warn!(
-                                "sherpa reset after endpoint failed for chunk {}: {}",
-                                chunk.chunk_id, e
-                            );
-                        }
-                    }
-
-                    Ok((cleaned_text, None, is_partial))
-                }
-                Err(e) => {
-                    error!(
-                        "Sherpa transcription failed for chunk {}: {}",
-                        chunk.chunk_id, e
-                    );
-                    let transcription_error = TranscriptionError::EngineFailed(e.to_string());
-                    let _ = app.emit(
-                        "transcription-error",
-                        &serde_json::json!({
-                            "error": transcription_error.to_string(),
-                            "userMessage": format!("Transcription failed: {}", transcription_error),
-                            "actionable": false
-                        }),
-                    );
-                    Err(transcription_error)
-                }
-            }
+        TranscriptionEngine::Sherpa(_sherpa_engine) => {
+            // ponytail: the streaming task (recording_commands.rs →
+            // start_streaming_task) is the *only* source of
+            // transcript-update events for the live UI. It uses the
+            // independent `current_streaming` slot and feeds raw
+            // 16 kHz audio every 100 ms, with its own 1.5 s
+            // silence-based endpoint policy. The VAD-batched path
+            // running here used to drive the UI directly, but every
+            // VAD chunk triggered a `reset()` on the `current` slot,
+            // which fragmented the hypothesis into 1-3-character
+            // outputs (the model needs ≥3 s of context to decode
+            // anything meaningful). When the streaming task is active
+            // we just drop the VAD chunk on the floor — returning an
+            // empty transcript makes the worker skip emitting
+            // transcript-update, so the streaming output is the only
+            // thing the UI renders.
+            Ok((String::new(), None, false))
         }
         TranscriptionEngine::Provider(provider) => {
             // NEW: Trait-based provider (clean, unified interface)
@@ -680,4 +680,579 @@ fn format_recording_time(seconds: f64) -> String {
     let secs = total_seconds % 60;
 
     format!("[{:02}:{:02}]", minutes, secs)
+}
+
+/// ponytail: feed raw 16kHz mono audio into the sherpa-onnx
+/// `current_streaming` slot every 100ms. The slot is fully
+/// independent from the VAD-batched path's `current` slot, so the
+/// VAD `reset()` at endpoint does not wipe the streaming hypothesis.
+/// The worker emits a `transcript-update` with `is_partial=true` for
+/// every decoded chunk. The frontend's existing partial-dedup logic
+/// (the only-keep-latest-partial rule in `processBufferedTranscripts`)
+/// collapses the stream of partials into a single in-place row whose
+/// text grows with every chunk.
+///
+/// The streaming task is **completely independent** of the VAD
+/// segment task — both run in parallel. The VAD task still commits
+/// `is_partial=false` segments on endpoint for the saved history;
+/// the streaming task never commits (no endpoint-driven reset of the
+/// streaming slot), it just keeps emitting the latest partial. When
+/// the session ends, `streaming_reset` is called once to clear state.
+pub fn start_streaming_task<R: Runtime>(
+    app: AppHandle<R>,
+    engine: Arc<SherpaEngine>,
+    mut raw_receiver: tokio::sync::mpsc::UnboundedReceiver<AudioChunk>,
+) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        info!("🛰️ Sherpa streaming task started — feeding raw 16k audio every 100ms");
+
+        // ponytail: iFlytek append-only. One sentence in flight at a
+        // time (sherpa's OnlineStream is single-channel). Begin is
+        // implicit — the first non-empty hypothesis after
+        // silence/full becomes the new sentence and the frontend
+        // opens a fresh row keyed on the new `sentence_id`. Full
+        // emits the cumulative text. Mid emits the suffix delta
+        // against the last emission for that `sentence_id` so the
+        // front text never reflows. If sherpa rewrites earlier
+        // tokens (`strip_prefix` fails), we treat it as a
+        // correction: emit Full with the corrected text on the
+        // current `sn`, then open a new sentence on the next `sn`.
+        let mut last_emitted_for_sn: HashMap<u32, String> = HashMap::new();
+        // ponytail: tracks the last raw sherpa hypothesis per sn.
+        // The Mid path needs two diff bases:
+        //   - raw_prev  : for dedupe ("did sherpa change anything?")
+        //   - emitted_prev : for strip_prefix on the punctuated
+        //     string (the iFlytek invariant).
+        // Splitting them lets us keep the 250ms throttle and
+        // dedupe against the raw stream while still diffing
+        // punctuated output against the previously-emitted
+        // punctuated string.
+        let mut last_raw_for_sn: HashMap<u32, String> = HashMap::new();
+        let mut last_mid_ts: Option<Instant> = None;
+        // ponytail: punctuation helper. If the punctuator model is
+        // loaded, returns the same characters with `，。？！` inserted
+        // between them (never inside a word span). The output
+        // preserves input order so the iFlytek strip_prefix
+        // invariant keeps holding — we just store and diff against
+        // the punctuated text instead of the raw text. When the
+        // punctuator is not loaded, the helper falls back to
+        // returning the raw text unchanged (frontend rule-based
+        // inserter takes over downstream).
+        // ponytail: bound local fn so we don't pay the async
+        // closure type ambiguity (Rust 1.77 has no async closures
+        // in stable).
+        async fn try_punctuate(
+            engine: &Arc<SherpaEngine>,
+            raw: String,
+        ) -> String {
+            engine.punctuate(&raw).await.unwrap_or(raw)
+        }
+        // ponytail: per-utterance id so the frontend React row stays
+        // mounted for the whole sentence. The streaming task
+        // allocates a fresh id when the model reports endpoint, then
+        // resets the streaming slot so the *next* utterance starts
+        // from zero. (The slot is independent of the VAD slot, so
+        // the VAD path's reset does not interfere.)
+        let mut utterance_seq_base: u64 = 0;
+        let mut utterance_seq_allocated: bool = false;
+
+        // ponytail: own endpoint policy. Sherpa's internal
+        // rule1/2/3 trailing-silence threshold never fires on raw
+        // 100ms chunks because most chunks contain some non-zero
+        // samples (room tone, mic noise). Track how many consecutive
+        // chunks have been effectively silent (RMS < SILENCE_RMS)
+        // and commit when that crosses `SILENT_CHUNKS_FOR_ENDPOINT`
+        // (~1.5s of silence). The streaming task is the only thing
+        // that drives the UI now — the VAD path is also running in
+        // parallel for saved-history, but it can lag without affecting
+        // the live transcript.
+        // ponytail: empirical noise floor of a quiet mic (laptop fan + mic
+        // self-noise after AEC) sits around 0.008-0.02 RMS; the previous
+        // 0.005 threshold never tripped even in silence, so the
+        // silence-based endpoint never fired. 0.015 still sits well
+        // below normal speech (0.05-0.2) and below music (~0.1+).
+        // ponytail: iFlytek-style sentence endpoint. 12 chunks × 100 ms =
+        // 1.2 s of continuous audio below `SILENCE_RMS` triggers Full
+        // (sentence commit). The previous 2.0 s / 3.5 s thresholds
+        // were too conservative — sherpa Zip waits for trailing
+        // silence that doesn't come in continuous Chinese monologue,
+        // so the user reports "nothing on screen". 1.2 s tolerates
+        // the natural 0.5-0.8 s Chinese clause pause (just barely)
+        // but commits on a real speaker pause. Matches
+        // sherpa rule1=1.0s within a small tolerance. The frontend
+        // coalesce (TranscriptContext.tsx, COALESCE_GAP_SEC=8) still
+        // stitches nearby short rows back together so the persisted
+        // meeting transcript stays readable.
+        const SILENCE_RMS: f32 = 0.015;
+        const SILENT_CHUNKS_FOR_ENDPOINT: u32 = 12;
+        // ponytail: Mid emit cadence. The previous 250 ms throttle
+        // matched an old "iFlytek console" cadence, but the user
+        // explicitly asked for character-level streaming, not a
+        // 250-ms heartbeat. sherpa-onnx Zip emits a new hypothesis
+        // roughly every 100 ms when speech is active, so we throttle
+        // Mid emits to 50 ms — same as the audio chunk rate — and
+        // let the frontend typewriter animate the in-place reveal
+        // from there. This gives the user a real-time character
+        // stream rather than a periodic burst-and-pause cadence.
+        const MIN_MID_INTERVAL_MS: u64 = 50;
+        let mut silent_chunks: u32 = 0;
+        // ponytail: max-utterance safety net. Even when the user is
+        // talking continuously (silent_chunks stays at 0), we commit
+        // the current hypothesis after this many 100-ms chunks so the
+        // UI doesn't hold a stale single-line partial for the entire
+        // long sentence. Matches sherpa-onnx rule3_min_utterance_length
+        // (engine.rs). If sherpa's internal endpoint already fired,
+        // we reset earlier — this is just the backstop.
+        // ponytail: reverted to 5 s = 50 chunks. With a 30 s
+        // backstop, sherpa Zip never reaches its internal endpoint
+        // on typical Chinese speech (it waits for trailing silence
+        // that doesn't come in continuous monologue), so the worker
+        // holds the entire utterance as one row and the user
+        // reports "nothing on screen" until recording stops. 5 s
+        // forces a periodic commit that re-seeds the streaming slot
+        // and gives the frontend something to display.
+        const MAX_CHUNKS_BETWEEN_COMMITS: u32 = 50;
+
+        let mut log_counter: u64 = 0;
+        let mut chunks_since_last_commit: u32 = 0;
+        while let Some(chunk) = raw_receiver.recv().await {
+            let samples_16k: Vec<f32> = if chunk.sample_rate == 16000 {
+                chunk.data
+            } else {
+                crate::audio::audio_processing::resample_audio(
+                    &chunk.data,
+                    chunk.sample_rate,
+                    16000,
+                )
+            };
+
+            // ponytail: compute RMS *before* handing the samples to
+            // sherpa — we don't want to call resample_audio twice.
+            let rms = if samples_16k.is_empty() {
+                0.0
+            } else {
+                let sum: f32 = samples_16k.iter().map(|s| s * s).sum();
+                (sum / samples_16k.len() as f32).sqrt()
+            };
+            if rms < SILENCE_RMS {
+                silent_chunks = silent_chunks.saturating_add(1);
+            } else {
+                silent_chunks = 0;
+            }
+            // ponytail: temporary diagnostic — log RMS once a second
+            // so we can see whether raw audio is reaching the
+            // streaming task and whether it's mostly silence.
+            log_counter += 1;
+            if log_counter % 10 == 0 {
+                info!(
+                    "🛰️ streaming chunk {}: rms={:.4}, samples={}, silent_run={}",
+                    log_counter, rms, samples_16k.len(), silent_chunks
+                );
+            }
+
+            // ponytail: we trigger our own endpoint when 1.5s of
+            // consecutive silence has passed AND we have a
+            // hypothesis to commit. We commit the *cached* text
+            // (the last non-empty hypothesis emitted for the
+            // current sentence) rather than the empty text the
+            // decoder returns on silence — sherpa tends to emit
+            // `""` once silence goes on long enough, and we'd lose
+            // the last few characters.
+            let cached_for_current = last_emitted_for_sn
+                .get(&(utterance_seq_base as u32))
+                .cloned()
+                .unwrap_or_default();
+            let our_endpoint = silent_chunks >= SILENT_CHUNKS_FOR_ENDPOINT
+                && !cached_for_current.is_empty()
+                && utterance_seq_allocated;
+
+            // ponytail: tick the commit-backstop counter and trigger an
+            // endpoint after MAX_CHUNKS_BETWEEN_COMMITS chunks even if
+            // sherpa never fires its own rule3. Matches the
+            // rule3_min_utterance_length=6.0 backstop in engine.rs.
+            chunks_since_last_commit = chunks_since_last_commit.saturating_add(1);
+            let backstop_commit = chunks_since_last_commit >= MAX_CHUNKS_BETWEEN_COMMITS
+                && utterance_seq_allocated
+                && !cached_for_current.is_empty();
+
+            match engine.accept_samples_for_streaming(samples_16k, 16000).await {
+                Ok(result) => {
+                    let text = result.text.trim();
+                    let endpoint = result.is_endpoint || our_endpoint || backstop_commit;
+                    if text.is_empty() && !endpoint {
+                        continue;
+                    }
+                    if endpoint {
+                        // ponytail: iFlytek Full on silence (or
+                        // sherpa's internal endpoint). Emit the
+                        // cumulative text for the current sentence
+                        // id, reset sherpa so the next utterance
+                        // starts clean, and arm the next sentence
+                        // id (lazy — the Begin row is opened by the
+                        // first non-empty hypothesis on the next
+                        // tick, not pre-emitted here).
+                        if !utterance_seq_allocated {
+                            utterance_seq_base =
+                                SEQUENCE_COUNTER.fetch_add(1, Ordering::SeqCst);
+                            utterance_seq_allocated = true;
+                        }
+                        let sequence_id = utterance_seq_base;
+                        let sn = sequence_id as u32;
+                        // ponytail: when sherpa returned an empty
+                        // hypothesis at endpoint we fall back to
+                        // the previously emitted cumulative text
+                        // (cached_for_current). Otherwise we trust
+                        // sherpa's latest hypothesis. We keep
+                        // `cached_for_current` as a separate
+                        // `String` (not consumed) so the
+                        // strip_prefix check below can borrow it.
+                        let emit_text_raw = if text.is_empty() {
+                            cached_for_current.as_str().to_string()
+                        } else {
+                            text.to_string()
+                        };
+                        // ponytail: punctuation on the cumulative
+                        // sentence before the Full commit. The
+                        // punctuator runs once per sentence (cheap)
+                        // and replaces the raw run-on string the
+                        // user has been watching live with the
+                        // punctuated final form. The Mid ticks
+                        // already added tail characters to the
+                        // frontend row, so this Final event just
+                        // patches the tail (whatever new characters
+                        // the latest partial added) — front text
+                        // still doesn't move.
+                        let emit_text =
+                            try_punctuate(&engine, emit_text_raw.clone())
+                                .await;
+                        // ponytail: Full must extend the previously
+                        // emitted punctuated string, never replace
+                        // it whole — that would cause the front
+                        // text to reflow on every endpoint. If the
+                        // punctuator produced an output that does
+                        // NOT start with the already-emitted tail,
+                        // emit only the new suffix instead.
+                        let tail = if !emit_text.is_empty()
+                            && emit_text.starts_with(cached_for_current.as_str())
+                        {
+                            emit_text[cached_for_current.len()..]
+                                .to_string()
+                        } else {
+                            // ponytail: invariant guard. Either the
+                            // punctuator rewrote earlier characters
+                            // (shouldn't happen for CT-Transformer)
+                            // or cached_for_current is empty. Emit
+                            // the full punctuated string; the
+                            // frontend's row replacement on Full
+                            // (per TranscriptContext.tsx merge
+                            // logic) is acceptable here since the
+                            // row was about to be locked into
+                            // committed style anyway.
+                            emit_text.clone()
+                        };
+                        let update = TranscriptUpdate {
+                            text: tail.clone(),
+                            timestamp: format_current_timestamp(),
+                            source: "Audio".to_string(),
+                            sequence_id,
+                            chunk_start_time: chunk.timestamp,
+                            is_partial: false,
+                            confidence: 0.85,
+                            audio_start_time: chunk.timestamp,
+                            audio_end_time: chunk.timestamp + 0.1,
+                            duration: 0.1,
+                            transient_speaker: None,
+                            sentence_id: sn,
+                            sentence_status: SentenceStatus::Full,
+                        };
+                        if let Err(e) = app.emit("transcript-update", &update) {
+                            warn!("streaming task: failed to emit full: {}", e);
+                        }
+                        // ponytail: store the *punctuated*
+                        // cumulative so the next tick's strip_prefix
+                        // check is against the same key we emit.
+                        last_emitted_for_sn.insert(sn, emit_text);
+                        last_raw_for_sn.remove(&sn);
+                        if let Err(e) = engine.streaming_reset().await {
+                            warn!("streaming task: streaming_reset after full failed: {}", e);
+                        }
+                        // ponytail: iFlytek-style sentence commit. Both
+                        // sherpa's internal endpoint and our silence
+                        // detector commit the current hypothesis and
+                        // reset sherpa so the next utterance starts
+                        // clean. We do NOT pre-allocate the next
+                        // sentence id here — the next non-empty
+                        // hypothesis below fetches a fresh id and
+                        // emits Begin for it. This matches the
+                        // iFlytek console: rows only appear when
+                        // there is content for them.
+                        //
+                        // ponytail: the backstop path (rule3
+                        // timeout) reuses the same sentence_id, so
+                        // the next hypothesis tick continues the
+                        // same row rather than allocating a new one.
+                        // Only the silence-driven commit
+                        // (`our_endpoint`) allocates a fresh id —
+                        // that's where a real new sentence boundary
+                        // is detected. We keep `last_emitted_for_sn`
+                        // populated across the backstop reset so the
+                        // Begin guard (next block) sees the slot is
+                        // not empty and reuses `utterance_seq_base`.
+                        let next = if backstop_commit && !our_endpoint {
+                            utterance_seq_base
+                        } else {
+                            SEQUENCE_COUNTER.fetch_add(1, Ordering::SeqCst)
+                        };
+                        utterance_seq_base = next;
+                        utterance_seq_allocated = false;
+                        if !backstop_commit || our_endpoint {
+                            last_emitted_for_sn.remove(&(sn));
+                            last_raw_for_sn.remove(&sn);
+                        }
+                        last_mid_ts = None;
+                        silent_chunks = 0;
+                        chunks_since_last_commit = 0;
+                        continue;
+                    }
+                    // ponytail: iFlytek append-only Mid path. The
+                    // current sherpa hypothesis may have grown
+                    // (good — emit a delta) or may have rewritten
+                    // earlier tokens (correction — close the current
+                    // sentence and start a new one). Empty
+                    // hypotheses are deduped against the last seen
+                    // text; same-text ticks emit nothing.
+                    if !utterance_seq_allocated {
+                        // ponytail: reuse the current sentence_id
+                        // when the streaming slot was just reset
+                        // (backstop commit above) so the next
+                        // hypothesis continues the same row in the
+                        // UI rather than starting a brand-new row
+                        // with its own timestamp. Only a fresh
+                        // recording session or a real
+                        // silence-driven reset above allocates a
+                        // new id.
+                        if utterance_seq_base == 0 && last_emitted_for_sn.is_empty() {
+                            utterance_seq_base =
+                                SEQUENCE_COUNTER.fetch_add(1, Ordering::SeqCst);
+                        }
+                        utterance_seq_allocated = true;
+                        let sn = utterance_seq_base as u32;
+                        let begin = TranscriptUpdate {
+                            text: String::new(),
+                            timestamp: format_current_timestamp(),
+                            source: "Audio".to_string(),
+                            sequence_id: utterance_seq_base,
+                            chunk_start_time: chunk.timestamp,
+                            is_partial: true,
+                            confidence: 0.0,
+                            audio_start_time: chunk.timestamp,
+                            audio_end_time: chunk.timestamp + 0.1,
+                            duration: 0.1,
+                            transient_speaker: None,
+                            sentence_id: sn,
+                            sentence_status: SentenceStatus::Begin,
+                        };
+                        if let Err(e) = app.emit("transcript-update", &begin) {
+                            warn!("streaming task: failed to emit begin: {}", e);
+                        }
+                        // ponytail: temporary diagnostic for
+                        // sentence_id allocation.
+                        log::info!("🛰️ Begin emit sn={}", sn);
+                        last_emitted_for_sn.insert(sn, String::new());
+                        // ponytail: no raw hypothesis seen yet for
+                        // this sn. Empty baseline so the next dedupe
+                        // comparison accepts the first non-empty
+                        // hypothesis without false-positive "same as
+                        // previous" skip.
+                        last_raw_for_sn
+                            .insert(sn, String::new());
+                        last_mid_ts = Some(Instant::now());
+                    }
+                    let sn = utterance_seq_base as u32;
+                    let prev_raw = last_raw_for_sn
+                        .get(&sn)
+                        .cloned()
+                        .unwrap_or_default();
+                    let prev_emitted = last_emitted_for_sn
+                        .get(&sn)
+                        .cloned()
+                        .unwrap_or_default();
+                    // ponytail: dedupe identical ticks (sherpa
+                    // sometimes emits the same hypothesis twice in
+                    // a row before adding new tokens). We compare
+                    // against the raw stream, not the punctuated
+                    // output, so punctuation is the only effect of
+                    // a re-emitted tick (and the punctuator is
+                    // deterministic, so re-emit yields the same
+                    // punctuated string).
+                    if text == prev_raw {
+                        continue;
+                    }
+                    // ponytail: throttle Mid cadence to ~4/s. If we
+                    // are inside the throttle window, cache the new
+                    // text so the next tick after the window emits
+                    // the accumulated delta (no chars lost).
+                    let now = Instant::now();
+                    let elapsed_ok = match last_mid_ts {
+                        Some(t) => now.duration_since(t).as_millis()
+                            >= MIN_MID_INTERVAL_MS as u128,
+                        None => true,
+                    };
+                    if !elapsed_ok {
+                        last_raw_for_sn.insert(sn, text.to_string());
+                        continue;
+                    }
+                    // ponytail: detect sherpa rewrite of earlier
+                    // tokens. If the new hypothesis does NOT start
+                    // with the previously RAW (non-punctuated)
+                    // hypothesis, treat it as a correction: close
+                    // the current sentence with the corrected text,
+                    // then open a new sentence with the corrected
+                    // text as its baseline.
+                    if !text.starts_with(prev_raw.as_str()) {
+                        // ponytail: correction closes the previous
+                        // sentence with its punctuated cumulative
+                        // text (so the user sees the final
+                        // committed sentence with `，。？！`
+                        // applied, not a raw run-on string). If
+                        // nothing was emitted for this sn yet, skip
+                        // the closure emit.
+                        if !prev_emitted.is_empty() {
+                            let corrected_update = TranscriptUpdate {
+                                text: prev_emitted.clone(),
+                                timestamp: format_current_timestamp(),
+                                source: "Audio".to_string(),
+                                sequence_id: utterance_seq_base,
+                                chunk_start_time: chunk.timestamp,
+                                is_partial: false,
+                                confidence: 0.85,
+                                audio_start_time: chunk.timestamp,
+                                audio_end_time: chunk.timestamp + 0.1,
+                                duration: 0.1,
+                                transient_speaker: None,
+                                sentence_id: sn,
+                                sentence_status: SentenceStatus::Full,
+                            };
+                            if let Err(e) = app.emit(
+                                "transcript-update",
+                                &corrected_update,
+                            ) {
+                                warn!(
+                                    "streaming task: failed to emit correction full: {}",
+                                    e
+                                );
+                            }
+                        }
+                        let next =
+                            SEQUENCE_COUNTER.fetch_add(1, Ordering::SeqCst);
+                        utterance_seq_base = next;
+                        let new_sn = next as u32;
+                        // ponytail: the next sn starts from the
+                        // current raw hypothesis. Its `last_emitted`
+                        // baseline is empty (Begin); the first Mid
+                        // will pick the punctuated prefix from
+                        // scratch and emit a delta from there.
+                        let begin = TranscriptUpdate {
+                            text: String::new(),
+                            timestamp: format_current_timestamp(),
+                            source: "Audio".to_string(),
+                            sequence_id: next,
+                            chunk_start_time: chunk.timestamp,
+                            is_partial: true,
+                            confidence: 0.0,
+                            audio_start_time: chunk.timestamp,
+                            audio_end_time: chunk.timestamp + 0.1,
+                            duration: 0.1,
+                            transient_speaker: None,
+                            sentence_id: new_sn,
+                            sentence_status: SentenceStatus::Begin,
+                        };
+                        if let Err(e) = app.emit("transcript-update", &begin) {
+                            warn!(
+                                "streaming task: failed to emit begin after correction: {}",
+                                e
+                            );
+                        }
+                        // ponytail: new sn starts at empty
+                        // (Begin just fired). The next Mid will run
+                        // the punctuator on the raw hypothesis and
+                        // emit a delta from this empty baseline.
+                        last_emitted_for_sn
+                            .insert(new_sn, String::new());
+                        last_raw_for_sn.insert(new_sn, text.to_string());
+                        last_mid_ts = Some(now);
+                        continue;
+                    }
+                    // ponytail: normal append path with punctuation. We diff against
+                    // the previously *emitted* (and thus punctuated)
+                    // string. The sherpa punctuator inserts
+                    // `，。？！` between existing characters without
+                    // ever deleting them, so
+                    // `punctuated_now.starts_with(prev_emitted)`
+                    // holds in practice. We slice on byte offsets
+                    // directly — the prefix is verbatim character
+                    // order, so byte boundaries line up.
+                    let punctuated_now =
+                        try_punctuate(&engine, text.to_string()).await;
+                    if !punctuated_now.starts_with(prev_emitted.as_str()) {
+                        // ponytail: invariant guard. If the
+                        // punctuator produced an output that
+                        // doesn't extend the previously emitted
+                        // string (rare; should never happen for
+                        // the CT-Transformer), skip this Mid and
+                        // let the next tick retry once the
+                        // hypothesis stabilises.
+                        continue;
+                    }
+                    let tail: String =
+                        punctuated_now[prev_emitted.len()..].to_string();
+                    if tail.is_empty() {
+                        last_emitted_for_sn.insert(sn, punctuated_now);
+                        continue;
+                    }
+                    let update = TranscriptUpdate {
+                        text: tail.clone(),
+                        timestamp: format_current_timestamp(),
+                        source: "Audio".to_string(),
+                        sequence_id: utterance_seq_base,
+                        chunk_start_time: chunk.timestamp,
+                        is_partial: true,
+                        confidence: 0.85,
+                        audio_start_time: chunk.timestamp,
+                        audio_end_time: chunk.timestamp + 0.1,
+                        duration: 0.1,
+                        transient_speaker: None,
+                        sentence_id: sn,
+                        sentence_status: SentenceStatus::Mid,
+                    };
+                    if let Err(e) = app.emit("transcript-update", &update) {
+                        warn!("streaming task: failed to emit mid: {}", e);
+                    }
+                    // ponytail: temporary diagnostic to confirm
+                    // sentence_id is reused on Mid emits.
+                    log::info!(
+                        "🛰️ Mid emit sn={}, text_len={}",
+                        sn,
+                        punctuated_now.len()
+                    );
+                    last_emitted_for_sn.insert(sn, punctuated_now);
+                    last_raw_for_sn.insert(sn, text.to_string());
+                    last_mid_ts = Some(now);
+                    chunks_since_last_commit = 0;
+                }
+                Err(e) => {
+                    warn!("streaming task: accept_samples failed: {}", e);
+                }
+            }
+        }
+
+        // Session end: clear the streaming slot so the next
+        // recording starts fresh. (VAD-batched path handles its own
+        // state in the existing stop path.)
+        if let Err(e) = engine.streaming_reset().await {
+            warn!("streaming task: final streaming_reset failed: {}", e);
+        }
+
+        info!("🛰️ Sherpa streaming task ended (raw receiver closed)");
+    })
 }

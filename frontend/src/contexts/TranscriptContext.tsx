@@ -181,7 +181,7 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let unlistenFn: (() => void) | undefined;
     let transcriptCounter = 0;
-    let transcriptBuffer = new Map<number, Transcript>();
+    let transcriptBuffer = new Map<string, Transcript>();
     let lastProcessedSequence = 0;
     let processingTimer: NodeJS.Timeout | undefined;
 
@@ -190,10 +190,10 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
 
       // Process all available sequential transcripts
       let nextSequence = lastProcessedSequence + 1;
-      while (transcriptBuffer.has(nextSequence)) {
-        const bufferedTranscript = transcriptBuffer.get(nextSequence)!;
+      while (transcriptBuffer.has(`seq-${nextSequence}`)) {
+        const bufferedTranscript = transcriptBuffer.get(`seq-${nextSequence}`)!;
         sortedTranscripts.push(bufferedTranscript);
-        transcriptBuffer.delete(nextSequence);
+        transcriptBuffer.delete(`seq-${nextSequence}`);
         lastProcessedSequence = nextSequence;
         nextSequence++;
       }
@@ -213,7 +213,9 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
           transcriptBuffer.delete(sequenceId);
           console.log(`Force flush: processing transcript with sequence_id ${sequenceId}`);
         } else {
-          const transcriptAge = now - parseInt(transcript.id.split('-')[0]);
+          const transcriptAge = transcript.buffered_at !== undefined
+            ? now - transcript.buffered_at
+            : 0;
           if (transcriptAge > staleThreshold) {
             // Process stale transcripts (>100ms old - safety net)
             staleTranscripts.push(transcript);
@@ -244,30 +246,105 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
 
       if (allNewTranscripts.length > 0) {
         setTranscripts(prev => {
-          // Create a set of existing sequence_ids for deduplication
-          const existingSequenceIds = new Set(prev.map(t => t.sequence_id).filter(id => id !== undefined));
+          // ponytail: merge strategy. sequence_id is the stable per-utterance
+          // key from the backend (one id per partial-to-final sequence in
+          // the streaming task). When the same sequence_id arrives
+          // again with a longer hypothesis, replace the older row in
+          // place so partials "grow" rather than stacking up. Otherwise
+          // append the new row.
+          // ponytail: iFlytek dedup. Prefer sentence_id when present (the
+          // streaming path's stable key per sentence); fall back to
+          // sequence_id for non-streaming engines (Whisper/Parakeet
+          // emit one-shot sentences). Same key drives the React row
+          // identity so Mid updates replace their Begin row in place
+          // without remounting — that's what stops the per-character
+          // reflow the user kept reporting as "前面字抖动".
+          const existingByKey = new Map<number, number>();
+          const keyFor = (t: Transcript): number | undefined => {
+            if (t.sentence_id !== undefined) return t.sentence_id;
+            if (t.sequence_id !== undefined) return t.sequence_id;
+            return undefined;
+          };
+          prev.forEach((t, idx) => {
+            const k = keyFor(t);
+            if (k !== undefined) existingByKey.set(k, idx);
+          });
 
-          // Filter out any new transcripts that already exist
-          const uniqueNewTranscripts = allNewTranscripts.filter(transcript =>
-            transcript.sequence_id !== undefined && !existingSequenceIds.has(transcript.sequence_id)
-          );
-
-          // Only combine if we have unique new transcripts
-          if (uniqueNewTranscripts.length === 0) {
-            console.log('No unique transcripts to add - all were duplicates');
-            return prev; // No new unique transcripts to add
+          const merged = [...prev];
+          for (const t of allNewTranscripts) {
+            const k = keyFor(t);
+            if (k === undefined) {
+              merged.push(t);
+              continue;
+            }
+            const idx = existingByKey.get(k);
+            if (idx === undefined) {
+              existingByKey.set(k, merged.length);
+              merged.push(t);
+            } else if (t.sentence_status === 'Mid') {
+              // ponytail: iFlytek append-only. For Mid events, `t.text`
+              // is the suffix delta from the backend; concatenate onto
+              // the existing row so front text never reflows. Full /
+              // Begin / no-sn still replace in place.
+              merged[idx] = { ...merged[idx], text: merged[idx].text + t.text };
+            } else {
+              merged[idx] = t;
+            }
           }
 
-          console.log(`Adding ${uniqueNewTranscripts.length} unique transcripts out of ${allNewTranscripts.length} received`);
+          // ponytail: short-segment coalescing. sherpa-onnx Zip's
+          // internal endpoint detector fires on token boundaries
+          // and brief trailing silence (~1.5 s), so a continuous
+          // Chinese monologue can produce a sequence of 2-8 word
+          // rows each tagged Full. The user reading the meeting
+          // timeline sees the row layout chop a thought into
+          // multiple lines and reads it as "段落过碎". Stitching
+          // nearby Full rows back together here keeps the row count
+          // close to the number of actual ideas the speaker
+          // expressed.
+          //
+          // Heuristic:
+          //   - both rows are non-empty
+          //   - the previous row is Full (committed, not partial)
+          //   - the new row arrived within COALESCE_GAP_SEC (audio
+          //     timestamps less than that apart)
+          //   - the previous row is short enough (< SHORT_PREV_CHARS)
+          //     that we don't lose formatting if a user already
+          //     highlighted or edited it
+          //
+          // We append text with no separator — the punctuator's
+          // Full emit already inserts the boundary punctuation
+          // (，。？！) at the boundary, so a bare concatenation
+          // reads as a single sentence.
+          const COALESCE_GAP_SEC = 8.0;
+          const SHORT_PREV_CHARS = 60;
+          for (let i = 1; i < merged.length; i++) {
+            const cur = merged[i];
+            if (cur.text.trim() === '') continue;
+            if (cur.sentence_status !== 'Full') continue;
+            const prev = merged[i - 1];
+            if (prev.text.trim() === '') continue;
+            if (prev.sentence_status !== 'Full') continue;
+            const prevEnd = prev.audio_end_time ?? prev.chunk_start_time ?? 0;
+            const curStart = cur.audio_start_time ?? prevEnd;
+            if (curStart - prevEnd > COALESCE_GAP_SEC) continue;
+            if (prev.text.length > SHORT_PREV_CHARS) continue;
+            merged[i - 1] = {
+              ...prev,
+              text: prev.text + cur.text,
+              audio_end_time: cur.audio_end_time ?? prevEnd,
+            };
+            merged.splice(i, 1);
+            i--;
+          }
 
-          // Merge with existing transcripts, maintaining chronological order
-          const combined = [...prev, ...uniqueNewTranscripts];
-
-          // Sort by chunk_start_time first, then by sequence_id
-          return combined.sort((a, b) => {
+          // Sort by chunk_start_time first, then by sentence_id
+          return merged.sort((a, b) => {
             const chunkTimeDiff = (a.chunk_start_time || 0) - (b.chunk_start_time || 0);
             if (chunkTimeDiff !== 0) return chunkTimeDiff;
-            return (a.sequence_id || 0) - (b.sequence_id || 0);
+            const aKey = keyFor(a) ?? 0;
+            const bKey = keyFor(b) ?? 0;
+            return aKey - bKey;
           });
         });
 
@@ -287,6 +364,18 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
         console.log('🔥 Setting up MAIN transcript listener during component initialization...');
         unlistenFn = await transcriptService.onTranscriptUpdate((update) => {
           const now = Date.now();
+          // ponytail: drop empty placeholder rows before they hit the
+          // buffer. The backend streaming path emits
+          // `SentenceStatus::Begin` rows with an empty text for the
+          // first non-empty hypothesis tick, and silent chunks also
+          // arrive as empty Full events. Letting those through means
+          // the UI grows an empty timestamped row per silent window
+          // (visible until recording stops). Filter here so the live
+          // transcript timeline stays aligned with what the user is
+          // actually hearing.
+          if (update.text.trim() === '') {
+            return;
+          }
           console.log('🎯 MAIN LISTENER: Received transcript update:', {
             sequence_id: update.sequence_id,
             text: update.text.substring(0, 50) + '...',
@@ -296,16 +385,27 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
             buffer_size_before: transcriptBuffer.size
           });
 
-          // Check for duplicate sequence_id before processing
-          if (transcriptBuffer.has(update.sequence_id)) {
-            console.log('🚫 MAIN LISTENER: Duplicate sequence_id, skipping buffer:', update.sequence_id);
-            return;
-          }
+          // ponytail: buffer by sentence_id when present (iFlytek
+          // mode); fall back to sequence_id for non-streaming
+          // engines that never set sentence_id. The merge step
+          // downstream uses the same key.
+          const dedup_key =
+            update.sentenceId !== undefined && update.sentenceId !== null
+              ? `sid-${update.sentenceId}`
+              : `seq-${update.sequence_id}`;
 
-          // Create transcript for buffer with NEW timestamp fields
+          // Create transcript for buffer with NEW timestamp fields.
+          // ponytail: if a Mid for the same sentenceId is already
+          // in the buffer, accumulate the delta onto the prior text
+          // so the 120ms debounce does not swallow interim chars.
+          const existing = transcriptBuffer.get(dedup_key);
+          let buffered_text = update.text;
+          if (existing && update.sentenceStatus === 'Mid') {
+            buffered_text = existing.text + update.text;
+          }
           const newTranscript: Transcript = {
-            id: `${Date.now()}-${transcriptCounter++}`,
-            text: update.text,
+            id: existing?.id ?? `${Date.now()}-${transcriptCounter++}`,
+            text: buffered_text,
             timestamp: update.timestamp,
             sequence_id: update.sequence_id,
             chunk_start_time: update.chunk_start_time,
@@ -315,10 +415,19 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
             audio_start_time: update.audio_start_time,
             audio_end_time: update.audio_end_time,
             duration: update.duration,
+            // ponytail: stamp the wall-clock time we received the
+            // partial; processBufferedTranscripts uses this for the
+            // stale-vs-recent split instead of parsing `id` (whose
+            // format changed once sequence_id started driving keys).
+            buffered_at: now,
+            // ponytail: iFlytek sentence protocol. sentence_id is
+            // the dedup key for the merge below; sentence_status
+            // drives the rendering style (grey-italic vs dark).
+            sentence_id: update.sentenceId,
+            sentence_status: update.sentenceStatus,
           };
-
-          // Add to buffer
-          transcriptBuffer.set(update.sequence_id, newTranscript);
+          // Add to buffer (replace any prior entry under same key)
+          transcriptBuffer.set(dedup_key, newTranscript);
           console.log(`✅ MAIN LISTENER: Buffered transcript with sequence_id ${update.sequence_id}. Buffer size: ${transcriptBuffer.size}, Last processed: ${lastProcessedSequence}`);
 
           // Save to IndexedDB (non-blocking)
@@ -332,8 +441,14 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
             clearTimeout(processingTimer);
           }
 
-          // Process buffer with minimal delay for immediate UI updates (serial workers = sequential order)
-          processingTimer = setTimeout(processBufferedTranscripts, 10);
+          // Process buffer with a small delay — every setTimeout call
+          // clears the previous one, so multiple partial updates within
+          // ~120ms collapse into a single React render. The previous
+          // 10ms delay meant partials flooded React/Virtualizer
+          // fast enough that growing segments kept re-laying out the
+          // virtualized list, which read as "the whole row flashing"
+          // once text exceeded the estimate size.
+          processingTimer = setTimeout(processBufferedTranscripts, 120);
         });
         console.log('✅ MAIN transcript listener setup complete');
       } catch (error) {
