@@ -35,6 +35,7 @@ pub(crate) use perf_trace;
 // Re-export async logging macros for external use (removed due to macro conflicts)
 
 // Declare audio module
+pub mod secrets;
 pub mod analytics;
 pub mod api;
 pub mod audio;

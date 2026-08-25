@@ -1,4 +1,5 @@
 use crate::database::models::{Setting, TranscriptSetting};
+use crate::secrets;
 use crate::summary::CustomOpenAIConfig;
 use sqlx::SqlitePool;
 
@@ -79,6 +80,22 @@ impl SettingsRepository {
             ));
         }
 
+        // Preferred path: OS credential store; the DB column is cleared so
+        // no plaintext remains in SQLite.
+        let account = secrets::account("api-key", provider);
+        if secrets::set_secret(&account, api_key).is_ok() {
+            if let Some(column) = Self::summary_api_key_column(provider) {
+                let _ = sqlx::query(&format!(
+                    "UPDATE settings SET {} = NULL WHERE id = '1'",
+                    column
+                ))
+                .execute(pool)
+                .await;
+            }
+            return Ok(());
+        }
+        // Fallback: vault unavailable - keep the legacy plaintext path.
+
         let api_key_column = match provider {
             "openai" => "openaiApiKey",
             "claude" => "anthropicApiKey",
@@ -117,26 +134,46 @@ impl SettingsRepository {
             return Ok(config.and_then(|c| c.api_key));
         }
 
-        let api_key_column = match provider {
-            "openai" => "openaiApiKey",
-            "ollama" => "ollamaApiKey",
-            "groq" => "groqApiKey",
-            "claude" => "anthropicApiKey",
-            "openrouter" => "openRouterApiKey",
-            "builtin-ai" => return Ok(None), // No API key needed
-            _ => {
-                return Err(sqlx::Error::Protocol(
-                    format!("Invalid provider: {}", provider).into(),
-                ))
-            }
+        let api_key_column = match Self::summary_api_key_column(provider) {
+            Some(c) => c,
+            None => match provider {
+                "builtin-ai" => return Ok(None), // No API key needed
+                _ => {
+                    return Err(sqlx::Error::Protocol(
+                        format!("Invalid provider: {}", provider).into(),
+                    ))
+                }
+            },
         };
 
+        // Preferred path: OS credential store.
+        let account = secrets::account("api-key", provider);
+        match secrets::get_secret(&account) {
+            Ok(Some(key)) => return Ok(Some(key)),
+            Ok(None) => {}
+            Err(e) => {
+                log::warn!("credential store unavailable ({}); falling back to database", e);
+            }
+        }
+
+        // Legacy plaintext in SQLite - migrate into the vault and clear.
         let query = format!(
             "SELECT {} FROM settings WHERE id = '1' LIMIT 1",
             api_key_column
         );
-        let api_key = sqlx::query_scalar(&query).fetch_optional(pool).await?;
-        Ok(api_key)
+        let api_key: Option<String> = sqlx::query_scalar(&query).fetch_optional(pool).await?;
+        if let Some(key) = api_key {
+            if secrets::migrate_secret(&account, &key, provider) {
+                let _ = sqlx::query(&format!(
+                    "UPDATE settings SET {} = NULL WHERE id = '1'",
+                    api_key_column
+                ))
+                .execute(pool)
+                .await;
+            }
+            return Ok(Some(key));
+        }
+        Ok(None)
     }
 
     pub async fn get_transcript_config(
@@ -177,6 +214,21 @@ impl SettingsRepository {
         provider: &str,
         api_key: &str,
     ) -> std::result::Result<(), sqlx::Error> {
+        // Preferred path: OS credential store (see save_api_key).
+        let account = secrets::account("transcript-api-key", provider);
+        if secrets::set_secret(&account, api_key).is_ok() {
+            if let Some(column) = Self::transcript_api_key_column(provider) {
+                let _ = sqlx::query(&format!(
+                    "UPDATE transcript_settings SET {} = NULL WHERE id = '1'",
+                    column
+                ))
+                .execute(pool)
+                .await;
+            }
+            return Ok(());
+        }
+        // Fallback: vault unavailable - keep the legacy plaintext path.
+
         let api_key_column = match provider {
             "localWhisper" => "whisperApiKey",
             "parakeet" => return Ok(()), // Parakeet doesn't need an API key, return early
@@ -209,26 +261,46 @@ impl SettingsRepository {
         pool: &SqlitePool,
         provider: &str,
     ) -> std::result::Result<Option<String>, sqlx::Error> {
-        let api_key_column = match provider {
-            "localWhisper" => "whisperApiKey",
-            "parakeet" => return Ok(None), // Parakeet doesn't need an API key
-            "deepgram" => "deepgramApiKey",
-            "elevenLabs" => "elevenLabsApiKey",
-            "groq" => "groqApiKey",
-            "openai" => "openaiApiKey",
-            _ => {
-                return Err(sqlx::Error::Protocol(
-                    format!("Invalid provider: {}", provider).into(),
-                ))
-            }
+        let api_key_column = match Self::transcript_api_key_column(provider) {
+            Some(c) => c,
+            None => match provider {
+                "parakeet" => return Ok(None), // Parakeet doesn't need an API key
+                _ => {
+                    return Err(sqlx::Error::Protocol(
+                        format!("Invalid provider: {}", provider).into(),
+                    ))
+                }
+            },
         };
 
+        // Preferred path: OS credential store.
+        let account = secrets::account("transcript-api-key", provider);
+        match secrets::get_secret(&account) {
+            Ok(Some(key)) => return Ok(Some(key)),
+            Ok(None) => {}
+            Err(e) => {
+                log::warn!("credential store unavailable ({}); falling back to database", e);
+            }
+        }
+
+        // Legacy plaintext in SQLite - migrate into the vault and clear.
         let query = format!(
             "SELECT {} FROM transcript_settings WHERE id = '1' LIMIT 1",
             api_key_column
         );
-        let api_key = sqlx::query_scalar(&query).fetch_optional(pool).await?;
-        Ok(api_key)
+        let api_key: Option<String> = sqlx::query_scalar(&query).fetch_optional(pool).await?;
+        if let Some(key) = api_key {
+            if secrets::migrate_secret(&account, &key, provider) {
+                let _ = sqlx::query(&format!(
+                    "UPDATE transcript_settings SET {} = NULL WHERE id = '1'",
+                    api_key_column
+                ))
+                .execute(pool)
+                .await;
+            }
+            return Ok(Some(key));
+        }
+        Ok(None)
     }
 
     pub async fn delete_api_key(
@@ -256,6 +328,11 @@ impl SettingsRepository {
                 ))
             }
         };
+
+        let account = secrets::account("api-key", provider);
+        if let Err(e) = secrets::delete_secret(&account) {
+            log::warn!("could not delete {} key from credential store: {}", provider, e);
+        }
 
         let query = format!(
             "UPDATE settings SET {} = NULL WHERE id = '1'",
@@ -344,6 +421,34 @@ impl SettingsRepository {
         .await?;
 
         Ok(())
+    }
+
+    // ===== API KEY COLUMN MAPPING =====
+
+    /// Column in `settings` holding the summary-provider API key, if the
+    /// provider uses one at all.
+    fn summary_api_key_column(provider: &str) -> Option<&'static str> {
+        match provider {
+            "openai" => Some("openaiApiKey"),
+            "claude" => Some("anthropicApiKey"),
+            "ollama" => Some("ollamaApiKey"),
+            "groq" => Some("groqApiKey"),
+            "openrouter" => Some("openRouterApiKey"),
+            _ => None,
+        }
+    }
+
+    /// Column in `transcript_settings` holding the transcript-provider API
+    /// key, if the provider uses one at all.
+    fn transcript_api_key_column(provider: &str) -> Option<&'static str> {
+        match provider {
+            "localWhisper" => Some("whisperApiKey"),
+            "deepgram" => Some("deepgramApiKey"),
+            "elevenLabs" => Some("elevenLabsApiKey"),
+            "groq" => Some("groqApiKey"),
+            "openai" => Some("openaiApiKey"),
+            _ => None,
+        }
     }
 
     // ===== GENERIC KV (app_settings table) =====
