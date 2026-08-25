@@ -450,8 +450,37 @@ pub async fn generate_summary(
             .message
             .content
             .trim();
-        Ok(content.to_string())
+        // MiniMax M-series keep their reasoning in <think>...</think> tags
+        // inside `content` on the OpenAI-compatible endpoint; summaries must
+        // not leak reasoning text.
+        let content = if *provider == LLMProvider::MiniMax {
+            strip_think_tags(content)
+        } else {
+            content.to_string()
+        };
+        Ok(content)
     }
+}
+
+/// Removes `<think>...</think>` blocks (and any unpaired opening tag with
+/// no closing counterpart, which appears when generation is cut mid-thought).
+fn strip_think_tags(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(start) = rest.find("<think>") {
+        out.push_str(&rest[..start]);
+        match rest[start..].find("</think>") {
+            Some(close_rel) => {
+                rest = &rest[start + close_rel + "</think>".len()..];
+            }
+            None => {
+                // Unclosed <think>: drop everything from the tag onward.
+                rest = "";
+            }
+        }
+    }
+    out.push_str(rest);
+    out.trim().to_string()
 }
 
 /// Helper function to get provider name for logging
@@ -467,6 +496,29 @@ fn provider_name(provider: &LLMProvider) -> &str {
         LLMProvider::CustomOpenAI => "Custom OpenAI",
     }
 }
+#[cfg(test)]
+mod minimax_tests {
+    use super::strip_think_tags;
+
+    #[test]
+    fn strips_think_blocks() {
+        assert_eq!(
+            strip_think_tags("<think>reasoning here</think>Summary text"),
+            "Summary text"
+        );
+    }
+
+    #[test]
+    fn strips_unclosed_think_prefix() {
+        assert_eq!(strip_think_tags("<think>cut off mid"), "");
+    }
+
+    #[test]
+    fn passthrough_without_tags() {
+        assert_eq!(strip_think_tags("Plain summary"), "Plain summary");
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
