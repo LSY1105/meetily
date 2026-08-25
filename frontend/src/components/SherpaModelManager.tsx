@@ -326,7 +326,7 @@ export function SherpaModelManager({
                     )}
                     {isPunctModel && isAvailable && !punctuatorLoaded && (
                       <span className="inline-flex items-center rounded-md bg-blue-100 px-2 py-0.5 text-xs text-blue-800">
-                        Downloaded · activates with ASR model
+                        Downloaded · auto-attaches (or press Load)
                       </span>
                     )}
                   </div>
@@ -410,8 +410,8 @@ export function SherpaModelManager({
                     </Button>
                   )}
                   {isAvailable && isPunctModel && punctuatorLoaded && (
-                    <span className="inline-flex items-center rounded-md bg-blue-100 px-2 py-0.5 text-xs text-blue-800">
-                      ✓ Loaded
+                    <span className="inline-flex items-center rounded-md bg-green-100 px-2 py-0.5 text-xs text-green-800">
+                      <CheckCircle2 className="mr-1 h-3 w-3" /> Punctuation Active
                     </span>
                   )}
                 </div>
