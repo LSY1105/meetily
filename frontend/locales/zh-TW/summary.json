@@ -68,5 +68,18 @@
     "ollama_not_installed_description": "請下載安裝 Ollama 以使用本地模型。",
     "ollama_install_action": "下載",
     "ollama_check_failed": "檢查 Ollama 模型失敗。請確認 Ollama 正在執行，且已下載模型。"
-  }
+  },
+  "qa_title": "AI 問答",
+  "qa_scope_meeting": "本會議",
+  "qa_scope_all": "全部會議",
+  "qa_web": "聯網",
+  "qa_web_toggle": "回答時連網查詢相關資料",
+  "qa_search_key": "網路搜尋 Key（Tavily）",
+  "qa_search_key_hint": "填寫 Tavily API Key（tavily.com）以啟用聯網搜尋",
+  "qa_save": "儲存",
+  "qa_empty": "針對會議內容提問，快速定位關鍵資訊。",
+  "qa_thinking": "思考中...",
+  "qa_placeholder": "輸入問題...",
+  "qa_sources": "引用來源",
+  "qa_error_hint": "請檢查模型設定後重試。"
 }

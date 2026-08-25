@@ -9,6 +9,8 @@ import { toast } from 'sonner';
 import { TranscriptPanel } from '@/components/MeetingDetails/TranscriptPanel';
 import { SummaryPanel } from '@/components/MeetingDetails/SummaryPanel';
 import { ModelConfig } from '@/components/ModelSettingsModal';
+import { AskAiPanel } from '@/components/MeetingDetails/AskAiPanel';
+import { Sparkles } from 'lucide-react';
 
 // Custom hooks
 import { useMeetingData } from '@/hooks/meeting-details/useMeetingData';
@@ -169,6 +171,8 @@ export default function PageContent({
     };
   }, [shouldAutoGenerate, meeting.id]); // Re-run if meeting changes
 
+  const [askAiOpen, setAskAiOpen] = useState(false);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -236,6 +240,19 @@ export default function PageContent({
           isModelConfigLoading={false}
           onOpenModelSettings={handleRegisterModalOpen}
         />
+        {askAiOpen && (
+          <AskAiPanel meetingId={meeting.id} onClose={() => setAskAiOpen(false)} />
+        )}
+        {!askAiOpen && (
+          <button
+            onClick={() => setAskAiOpen(true)}
+            className="fixed bottom-20 right-6 z-20 flex items-center gap-1.5 px-3 py-2 rounded-full bg-gray-900 text-white text-xs shadow-lg hover:bg-gray-700 transition-colors"
+            title="AI Q&A"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            AI 问答
+          </button>
+        )}
       </div>
     </motion.div>
   );

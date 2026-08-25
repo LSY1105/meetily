@@ -68,5 +68,18 @@
     "ollama_not_installed_description": "로컬 모델을 사용하려면 Ollama를 다운로드하고 설치하세요.",
     "ollama_install_action": "다운로드",
     "ollama_check_failed": "Ollama 모델 확인 실패. Ollama가 실행 중인지 확인하고 모델을 다운로드하세요."
-  }
+  },
+  "qa_title": "AI Q&A",
+  "qa_scope_meeting": "이 회의",
+  "qa_scope_all": "전체 회의",
+  "qa_web": "웹",
+  "qa_web_toggle": "웹 검색으로 답변 보강",
+  "qa_search_key": "검색 키(Tavily)",
+  "qa_search_key_hint": "웹 검색을 사용하려면 Tavily API 키(tavily.com)를 입력하세요",
+  "qa_save": "저장",
+  "qa_empty": "회의 내용에 대해 질문하세요.",
+  "qa_thinking": "생각 중...",
+  "qa_placeholder": "질문을 입력...",
+  "qa_sources": "출처",
+  "qa_error_hint": "모델 설정을 확인 후 다시 시도하세요."
 }

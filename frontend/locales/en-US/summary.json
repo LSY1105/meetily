@@ -68,5 +68,18 @@
     "ollama_not_installed_description": "Please download and install Ollama to use local models.",
     "ollama_install_action": "Download",
     "ollama_check_failed": "Failed to check Ollama models. Please check if Ollama is running and download a model."
-  }
+  },
+  "qa_title": "AI Q&A",
+  "qa_scope_meeting": "This meeting",
+  "qa_scope_all": "All meetings",
+  "qa_web": "Web",
+  "qa_web_toggle": "Enrich answers with web search",
+  "qa_search_key": "Web search key (Tavily)",
+  "qa_search_key_hint": "Enter your Tavily API key (tavily.com) to enable web search",
+  "qa_save": "Save",
+  "qa_empty": "Ask anything about your meetings.",
+  "qa_thinking": "Thinking...",
+  "qa_placeholder": "Ask a question...",
+  "qa_sources": "Sources",
+  "qa_error_hint": "Check your model configuration or try again."
 }

@@ -68,5 +68,18 @@
     "ollama_not_installed_description": "ローカルモデルを使用するには Ollama をダウンロードしてインストールしてください。",
     "ollama_install_action": "ダウンロード",
     "ollama_check_failed": "Ollama モデルの確認に失敗しました。Ollama が動作しているか確認し、モデルをダウンロードしてください。"
-  }
+  },
+  "qa_title": "AI Q&A",
+  "qa_scope_meeting": "この会議",
+  "qa_scope_all": "すべての会議",
+  "qa_web": "ウェブ",
+  "qa_web_toggle": "ウェブ検索で回答を補強する",
+  "qa_search_key": "検索キー（Tavily）",
+  "qa_search_key_hint": "ウェブ検索を有効にするには Tavily API キー（tavily.com）を入力",
+  "qa_save": "保存",
+  "qa_empty": "会議内容について質問できます。",
+  "qa_thinking": "思考中...",
+  "qa_placeholder": "質問を入力...",
+  "qa_sources": "参照元",
+  "qa_error_hint": "モデル設定を確認して再試行してください。"
 }
