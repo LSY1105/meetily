@@ -202,10 +202,18 @@ impl LoudnessNormalizer {
                 if let Err(e) = self.ebur128.add_frames_f32(&self.loudness_buffer) {
                     warn!("Failed to add frames to EBU R128: {}", e);
                 } else {
-                    // Update gain based on cumulative loudness
-                    if let Ok(current_lufs) = self.ebur128.loudness_global() {
+                    // A2: short-term (3 s) loudness instead of cumulative
+                    // global loudness. The global measure adapts far too
+                    // slowly for ASR: a loud passage at the start pinned the
+                    // gain low and quiet speech stayed under-normalized for
+                    // the rest of the recording. The 3 s window lifts quiet
+                    // speech to target within seconds. The MAX_GAIN_DB cap
+                    // prevents pure-noise passages from being amplified into
+                    // VAD-confounding garbage.
+                    if let Ok(current_lufs) = self.ebur128.loudness_shortterm() {
                         if current_lufs.is_finite() && current_lufs < 0.0 {
-                            let gain_db = TARGET_LUFS - current_lufs;
+                            const MAX_GAIN_DB: f64 = 30.0;
+                            let gain_db = (TARGET_LUFS - current_lufs).min(MAX_GAIN_DB);
                             self.gain_linear = 10_f32.powf(gain_db as f32 / 20.0);
                         }
                     }

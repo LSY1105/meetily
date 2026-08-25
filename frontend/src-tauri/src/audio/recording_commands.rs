@@ -293,6 +293,13 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
     .ok()
     .flatten()
     .map(|c| c.provider);
+    // A1: front-end denoising for engines that need it. Whisper large is
+    // robust to background noise (historical behavior preserved); the small
+    // streaming engines (sherpa/parakeet) and cloud providers benefit from
+    // RNNoise, especially for quiet speech in noisy environments.
+    super::ffmpeg_mixer::set_rnnoise_enabled(
+        !matches!(streaming_provider.as_deref(), Some("localWhisper") | Some("whisper")),
+    );
     if streaming_provider.as_deref() == Some("sherpa") {
         start_sherpa_streaming(app.clone()).await;
     }
@@ -490,6 +497,13 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
     .ok()
     .flatten()
     .map(|c| c.provider);
+    // A1: front-end denoising for engines that need it. Whisper large is
+    // robust to background noise (historical behavior preserved); the small
+    // streaming engines (sherpa/parakeet) and cloud providers benefit from
+    // RNNoise, especially for quiet speech in noisy environments.
+    super::ffmpeg_mixer::set_rnnoise_enabled(
+        !matches!(streaming_provider.as_deref(), Some("localWhisper") | Some("whisper")),
+    );
     if streaming_provider.as_deref() == Some("sherpa") {
         start_sherpa_streaming(app.clone()).await;
     }

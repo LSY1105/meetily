@@ -17,7 +17,21 @@ use log::{debug, warn, info};
 use super::device_detection::InputDeviceKind;
 
 /// Configuration flags for audio processing features
-pub const RNNOISE_APPLY_ENABLED: bool = false;  // Default: disabled (Whisper handles noise well)
+// A1: noise suppression is now a runtime toggle set per recording session
+// (see set_rnnoise_enabled). Small streaming ASR engines (sherpa/parakeet)
+// are NOT robust to background noise, unlike Whisper large - so the flag is
+// flipped on for those engines at recording start.
+static RNNOISE_ENABLED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Enable/disable RNNoise for subsequently started recordings.
+pub fn set_rnnoise_enabled(enabled: bool) {
+    RNNOISE_ENABLED.store(enabled, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// Current RNNoise toggle.
+pub fn rnnoise_enabled() -> bool {
+    RNNOISE_ENABLED.load(std::sync::atomic::Ordering::Relaxed)
+}
 
 /// Timestamp for audio samples (reserved for future use)
 #[allow(dead_code)]
