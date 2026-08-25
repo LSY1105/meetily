@@ -102,6 +102,7 @@ impl SettingsRepository {
             "ollama" => "ollamaApiKey",
             "groq" => "groqApiKey",
             "openrouter" => "openRouterApiKey",
+            "minimax" => "minimaxApiKey",
             "builtin-ai" => return Ok(()), // No API key needed
             _ => {
                 return Err(sqlx::Error::Protocol(
@@ -435,6 +436,7 @@ impl SettingsRepository {
             "ollama" => Some("ollamaApiKey"),
             "groq" => Some("groqApiKey"),
             "openrouter" => Some("openRouterApiKey"),
+            "minimax" => Some("minimaxApiKey"),
             _ => None,
         }
     }
