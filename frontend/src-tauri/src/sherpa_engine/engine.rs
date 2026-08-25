@@ -448,11 +448,14 @@ impl SherpaEngine {
         // not straight into `punct_dir`. Look one level deeper and
         // use the int8-quantized checkpoint filename the asset
         // actually ships.
+        // Idempotent: skip the (expensive) ONNX load when the punctuator
+        // is already attached - repeated load_model calls would otherwise
+        // rebuild it every time.
         let punct_dir = self.models_dir.join(PUNCT_MODEL_DIR);
         let punct_model_path = punct_dir
             .join(PUNCT_MODEL_DIR)
             .join("model.int8.onnx");
-        if punct_model_path.exists() {
+        if punct_model_path.exists() && !self.is_punctuator_loaded().await {
             let cfg = OfflinePunctuationConfig {
                 model: OfflinePunctuationModelConfig {
                     ct_transformer: Some(
