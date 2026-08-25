@@ -81,6 +81,71 @@ function cleanStopWords(text: string): string {
 }
 
 // Memoized transcript segment component
+/**
+ * Typewriter reveal for streaming partials. Mid updates are append-only,
+ * so we track how much of `text` the user has already seen and reveal new
+ * characters at animation speed instead of dumping the whole update at
+ * once. Non-append changes (corrections) snap to the full new text.
+ */
+const StreamingText = memo(function StreamingText({ text }: { text: string }) {
+    const [visibleLen, setVisibleLen] = useState(() => text.length);
+    const revealedRef = useRef(text.slice(0, text.length));
+    const rafRef = useRef<number | null>(null);
+
+    useEffect(() => {
+        const revealed = revealedRef.current;
+        // Append-only growth -> animate the new tail; otherwise snap.
+        if (text.length >= revealed.length && text.startsWith(revealed)) {
+            // already fully revealed
+            if (visibleLen >= text.length) {
+                revealedRef.current = text;
+                return;
+            }
+            const step = () => {
+                setVisibleLen((prev) => {
+                    const remaining = text.length - prev;
+                    if (remaining <= 0) {
+                        if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+                        rafRef.current = null;
+                        revealedRef.current = text;
+                        return prev;
+                    }
+                    // Catch-up speed: reveal proportionally, at least 1 char.
+                    const next = prev + Math.max(1, Math.ceil(remaining / 12));
+                    return Math.min(next, text.length);
+                });
+                rafRef.current = requestAnimationFrame(step);
+            };
+            rafRef.current = requestAnimationFrame(step);
+        } else {
+            if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+            rafRef.current = null;
+            setVisibleLen(text.length);
+            revealedRef.current = text;
+        }
+        return () => {
+            if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+            rafRef.current = null;
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [text]);
+
+    const shown = text.slice(0, visibleLen);
+    const done = visibleLen >= text.length;
+
+    return (
+        <>
+            {shown}
+            {!done && (
+                <span
+                    aria-hidden
+                    className="inline-block w-[2px] h-[1em] bg-gray-500 align-text-bottom ml-px animate-pulse"
+                />
+            )}
+        </>
+    );
+});
+
 const TranscriptSegment = memo(function TranscriptSegment({
     id,
     timestamp,
@@ -292,7 +357,7 @@ const TranscriptSegment = memo(function TranscriptSegment({
                         </div>
                     ) : isStreaming ? (
                         <div className="bg-gray-100 border border-gray-200 rounded-lg px-3 py-2">
-                            <p onClick={onEditText ? openEdit : undefined} className={textClass}>{hotwordNodes}{postprocessFailed ? (<span className="ml-1 inline-flex align-baseline text-amber-600" title={postprocessFailedMessage ?? ""} aria-label="LLM postprocess failed">⚠</span>) : null}{postprocessFailed ? (<button type="button" onClick={handleRetry} disabled={retrying} className="ml-1 inline-flex align-baseline text-blue-600 hover:text-blue-800 disabled:text-gray-400" title={t("retry_postprocess.button", { default: "Retry" })} aria-label={t("retry_postprocess.button", { default: "Retry" })}><RefreshCw size={14} className={retrying ? "animate-spin" : ""} /></button>) : null}</p>
+                            <p onClick={onEditText ? openEdit : undefined} className={textClass}><StreamingText text={punctuated} />{postprocessFailed ? (<span className="ml-1 inline-flex align-baseline text-amber-600" title={postprocessFailedMessage ?? ""} aria-label="LLM postprocess failed">⚠</span>) : null}{postprocessFailed ? (<button type="button" onClick={handleRetry} disabled={retrying} className="ml-1 inline-flex align-baseline text-blue-600 hover:text-blue-800 disabled:text-gray-400" title={t("retry_postprocess.button", { default: "Retry" })} aria-label={t("retry_postprocess.button", { default: "Retry" })}><RefreshCw size={14} className={retrying ? "animate-spin" : ""} /></button>) : null}</p>
                         </div>
                     ) : (
                         <p onClick={onEditText ? openEdit : undefined} className={textClass}>{hotwordNodes}{postprocessFailed ? (<span className="ml-1 inline-flex align-baseline text-amber-600" title={postprocessFailedMessage ?? ""} aria-label="LLM postprocess failed">⚠</span>) : null}{postprocessFailed ? (<button type="button" onClick={handleRetry} disabled={retrying} className="ml-1 inline-flex align-baseline text-blue-600 hover:text-blue-800 disabled:text-gray-400" title={t("retry_postprocess.button", { default: "Retry" })} aria-label={t("retry_postprocess.button", { default: "Retry" })}><RefreshCw size={14} className={retrying ? "animate-spin" : ""} /></button>) : null}</p>
