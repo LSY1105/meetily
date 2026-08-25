@@ -55,14 +55,26 @@ fn get_models_directory() -> Option<PathBuf> {
 
 #[command]
 pub async fn sherpa_init() -> Result<(), String> {
-    let mut guard = SHERPA_ENGINE.lock().unwrap();
-    if guard.is_some() {
-        return Ok(());
-    }
+    {
+        let guard = SHERPA_ENGINE.lock().unwrap();
+        if guard.is_some() {
+            return Ok(());
+        }
+    } // guard dropped: it must not be held across the awaits below
+      // (a std MutexGuard is not Send).
     let models_dir = get_models_directory();
     let engine = SherpaEngine::new_with_models_dir(models_dir)
         .map_err(|e| format!("Failed to init sherpa engine: {}", e))?;
-    *guard = Some(Arc::new(engine));
+    // ponytail: once downloaded, the punctuation model is always part of
+    // the pipeline - attach it eagerly so its availability does not
+    // depend on whether an ASR model was loaded first.
+    engine.attach_punctuator_if_files_present().await;
+    let mut guard = SHERPA_ENGINE.lock().unwrap();
+    // Double-checked: a concurrent init may have stored an engine while we
+    // were attaching. Keep the existing one; ours just gets dropped.
+    if guard.is_none() {
+        *guard = Some(Arc::new(engine));
+    }
     Ok(())
 }
 

@@ -45,7 +45,6 @@ export function SherpaModelManager({
   // Punct row can render an "Active" badge (green, distinct from
   // the ASR "✓ Loaded") instead of the previous silent ambiguity.
   const [punctuatorLoaded, setPunctuatorLoaded] = useState(false);
-  const [punctLoading, setPunctLoading] = useState(false);
 
   const onModelSelectRef = useRef(onModelSelect);
   const autoSaveRef = useRef(autoSave);
@@ -372,48 +371,10 @@ export function SherpaModelManager({
                       ✓ Loaded
                     </span>
                   )}
-                  {/* ponytail: Punct behaves like the other rows now -
-                      a Load button that disappears with a ✓ once the
-                      punctuator is actually attached to the sherpa engine
-                      (`sherpa_load_punctuator` initializes the engine if
-                      needed and attaches the OfflinePunctuation ONNX
-                      model), instead of the confusing always-there
-                      Refresh button. */}
-                  {isAvailable && isPunctModel && !punctuatorLoaded && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={punctLoading}
-                      onClick={async () => {
-                        setPunctLoading(true);
-                        try {
-                          const loaded = await SherpaAPI.loadPunctuator();
-                          setPunctuatorLoaded(loaded);
-                          toast.success(loaded
-                            ? 'Punctuation model loaded'
-                            : 'Punctuation model files not found at expected path');
-                        } catch (err) {
-                          const message = err instanceof Error ? err.message : String(err);
-                          toast.error('Failed to load punctuation model', { description: message });
-                        } finally {
-                          setPunctLoading(false);
-                        }
-                      }}
-                    >
-                      {punctLoading ? (
-                        <>
-                          <Loader2 className="mr-1 h-3 w-3 animate-spin" /> Loading
-                        </>
-                      ) : (
-                        'Load'
-                      )}
-                    </Button>
-                  )}
-                  {isAvailable && isPunctModel && punctuatorLoaded && (
-                    <span className="inline-flex items-center rounded-md bg-green-100 px-2 py-0.5 text-xs text-green-800">
-                      <CheckCircle2 className="mr-1 h-3 w-3" /> Punctuation Active
-                    </span>
-                  )}
+                  {/* ponytail: once downloaded, the punctuation model is
+                      always attached by the backend (on sherpa_init and on
+                      every ASR load_model), so downloaded == active. No
+                      Load button: there is nothing selectable here. */}
                 </div>
               </div>
             </div>
