@@ -107,6 +107,7 @@ pub enum LLMProvider {
     Groq,
     Ollama,
     OpenRouter,
+    MiniMax,
     BuiltInAI,
     CustomOpenAI,
 }
@@ -120,6 +121,7 @@ impl LLMProvider {
             "groq" => Ok(Self::Groq),
             "ollama" => Ok(Self::Ollama),
             "openrouter" => Ok(Self::OpenRouter),
+            "minimax" => Ok(Self::MiniMax),
             "builtin-ai" | "local-llama" | "localllama" => Ok(Self::BuiltInAI),
             "custom-openai" => Ok(Self::CustomOpenAI),
             _ => Err(format!("Unsupported LLM provider: {}", s)),
@@ -335,6 +337,12 @@ pub async fn generate_summary(
             "https://openrouter.ai/api/v1/chat/completions".to_string(),
             header::HeaderMap::new(),
         ),
+        LLMProvider::MiniMax => (
+            // Domestic open platform (Token 计划); international is
+            // https://api.minimax.io - same OpenAI-compatible contract.
+            "https://api.minimaxi.com/v1/chat/completions".to_string(),
+            header::HeaderMap::new(),
+        ),
         LLMProvider::CustomOpenAI => {
             let endpoint = custom_openai_endpoint
                 .ok_or_else(|| LLMError::Other("custom_openai_endpoint is required for CustomOpenAI provider".to_string()))?;
@@ -455,6 +463,7 @@ fn provider_name(provider: &LLMProvider) -> &str {
         LLMProvider::Ollama => "Ollama",
         LLMProvider::BuiltInAI => "Built-in AI",
         LLMProvider::OpenRouter => "OpenRouter",
+        LLMProvider::MiniMax => "MiniMax",
         LLMProvider::CustomOpenAI => "Custom OpenAI",
     }
 }

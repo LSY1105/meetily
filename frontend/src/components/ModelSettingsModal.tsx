@@ -33,7 +33,7 @@ import { useLLMProviders, type ProviderPreset } from '@/hooks/useLLMProviders';
 import { useTranslations } from 'next-intl';
 
 export interface ModelConfig {
-  provider: 'ollama' | 'groq' | 'claude' | 'openai' | 'openrouter' | 'builtin-ai' | 'custom-openai';
+  provider: 'ollama' | 'groq' | 'claude' | 'openai' | 'openrouter' | 'minimax' | 'builtin-ai' | 'custom-openai';
   model: string;
   whisperModel: string;
   apiKey?: string | null;
@@ -103,6 +103,19 @@ const GROQ_FALLBACK_MODELS = [
   'gemma2-9b-it',
 ];
 
+// MiniMax open platform (OpenAI-compatible). Static fallback mirrors the
+// documented model roster; live list comes from GET /v1/models.
+const MINIMAX_FALLBACK_MODELS = [
+  'MiniMax-M3',
+  'MiniMax-M2.7',
+  'MiniMax-M2.7-highspeed',
+  'MiniMax-M2.5',
+  'MiniMax-M2.5-highspeed',
+  'MiniMax-M2.1',
+  'MiniMax-M2.1-highspeed',
+  'MiniMax-M2',
+];
+
 interface ModelSettingsModalProps {
   modelConfig: ModelConfig;
   setModelConfig: (config: ModelConfig | ((prev: ModelConfig) => ModelConfig)) => void;
@@ -133,6 +146,8 @@ export function ModelSettingsModal({
   const [isLockButtonVibrating, setIsLockButtonVibrating] = useState<boolean>(false);
   const { serverAddress } = useSidebar();
   const [openRouterModels, setOpenRouterModels] = useState<OpenRouterModel[]>([]);
+  const [minimaxModels, setMinimaxModels] = useState<string[]>([]);
+  const [isLoadingMinimax, setIsLoadingMinimax] = useState<boolean>(false);
   const [openRouterError, setOpenRouterError] = useState<string>('');
   const [isLoadingOpenRouter, setIsLoadingOpenRouter] = useState<boolean>(false);
   const [ollamaEndpoint, setOllamaEndpoint] = useState<string>(modelConfig.ollamaEndpoint || '');
@@ -242,6 +257,7 @@ export function ModelSettingsModal({
     groq: groqModels.length > 0 ? groqModels : GROQ_FALLBACK_MODELS,
     openai: openaiModels.length > 0 ? openaiModels : OPENAI_FALLBACK_MODELS,
     openrouter: openRouterModels.map((m) => m.id),
+    minimax: minimaxModels.length > 0 ? minimaxModels : MINIMAX_FALLBACK_MODELS,
     'builtin-ai': builtinAiModels.map((m) => m.name),
     'custom-openai': customOpenAIModel ? [customOpenAIModel] : [], // User specifies model manually
   };
@@ -254,7 +270,8 @@ export function ModelSettingsModal({
     modelConfig.provider === 'claude' ||
     modelConfig.provider === 'groq' ||
     modelConfig.provider === 'openai' ||
-    modelConfig.provider === 'openrouter'
+    modelConfig.provider === 'openrouter' ||
+    modelConfig.provider === 'minimax'
   );
 
   // Check if Ollama endpoint has changed but models haven't been fetched yet
@@ -523,6 +540,21 @@ export function ModelSettingsModal({
     }
   };
 
+  const loadMinimaxModels = async () => {
+    if (minimaxModels.length > 0) return; // Already loaded
+
+    try {
+      setIsLoadingMinimax(true);
+      const data = (await invoke('get_minimax_models', { apiKey })) as { id: string }[];
+      setMinimaxModels(data.map((m) => m.id));
+    } catch (err) {
+      // Not fatal: the static fallback roster is already shown.
+      console.error('Error loading MiniMax models:', err);
+    } finally {
+      setIsLoadingMinimax(false);
+    }
+  };
+
   const loadBuiltinAiModels = async () => {
     if (builtinAiModels.length > 0) return; // Already loaded
 
@@ -632,7 +664,7 @@ export function ModelSettingsModal({
     if (cachedModel && providerModels.includes(cachedModel)) {
       setModelConfig((prev: ModelConfig) => ({ ...prev, model: cachedModel }));
     }
-  }, [models, openRouterModels, builtinAiModels, openaiModels, claudeModels, groqModels, modelConfig.provider]);
+  }, [models, openRouterModels, builtinAiModels, openaiModels, claudeModels, groqModels, minimaxModels, modelConfig.provider]);
 
   const handleSave = async () => {
     // PR-46b: pre-save endpoint probe for custom-openai.
@@ -934,6 +966,11 @@ async function checkEndpointReachable(url: string): Promise<boolean> {
                   loadOpenRouterModels();
                 }
 
+                // Load MiniMax models only when MiniMax is selected
+                if (provider === 'minimax') {
+                  loadMinimaxModels();
+                }
+
                 // Load Built-in AI models when selected
                 if (provider === 'builtin-ai') {
                   loadBuiltinAiModels();
@@ -988,6 +1025,7 @@ async function checkEndpointReachable(url: string): Promise<boolean> {
                     <CommandInput placeholder="Search models..." />
                     <CommandList className="max-h-[300px]">
                       {(modelConfig.provider === 'openrouter' && isLoadingOpenRouter) ||
+                       (modelConfig.provider === 'minimax' && isLoadingMinimax) ||
                        (modelConfig.provider === 'openai' && isLoadingOpenAI) ||
                        (modelConfig.provider === 'claude' && isLoadingClaude) ||
                        (modelConfig.provider === 'groq' && isLoadingGroq) ? (

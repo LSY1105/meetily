@@ -47,6 +47,12 @@ pub const PROVIDER_PRESETS: &[ProviderPreset] = &[
         default_base_url: None,
     },
     ProviderPreset {
+        id: "minimax",
+        display_name: "MiniMax (MiniMaxi)",
+        requires_api_key: true,
+        default_base_url: Some("https://api.minimaxi.com/v1"),
+    },
+    ProviderPreset {
         id: "builtin-ai",
         display_name: "Built-in AI (local llama)",
         requires_api_key: false,
@@ -80,8 +86,8 @@ mod tests {
     #[test]
     fn preset_count_matches_llm_provider_variants() {
         // Keep this in sync with summary::llm_client::LLMProvider. The current
-        // count is 7. If a future PR adds an 8th, update both sides.
-        assert_eq!(PROVIDER_PRESETS.len(), 7);
+        // count is 8. If a future PR adds a 9th, update both sides.
+        assert_eq!(PROVIDER_PRESETS.len(), 8);
     }
 
     #[test]

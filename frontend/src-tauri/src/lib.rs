@@ -37,6 +37,7 @@ pub(crate) use perf_trace;
 // Declare audio module
 pub mod secrets;
 pub mod analytics;
+pub mod minimax;
 pub mod api;
 pub mod audio;
 pub mod diarization;
@@ -725,6 +726,7 @@ pub fn run() {
             ollama::delete_ollama_model,
             ollama::get_ollama_model_context,
             openai::openai::get_openai_models,
+            minimax::minimax::get_minimax_models,
             anthropic::anthropic::get_anthropic_models,
             groq::groq::get_groq_models,
             api::api_get_meetings,

@@ -13,7 +13,7 @@ import { useProviderChain, MAX_CHAIN_LENGTH, ProviderChainEntry } from '@/hooks/
 // Default behaviour (toggle off) = single primary provider, no failover.
 // Opt-in only; explicit warning shown to prevent accidental double-billing.
 
-const KNOWN_PROVIDERS = ['openai', 'claude', 'groq', 'ollama', 'openrouter'] as const;
+const KNOWN_PROVIDERS = ['openai', 'claude', 'groq', 'ollama', 'openrouter', 'minimax'] as const;
 
 export function ProviderFailoverSection() {
   const t = useTranslations('settings');
