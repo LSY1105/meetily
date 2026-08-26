@@ -33,6 +33,8 @@ function MeetingDetailsContent() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [shouldAutoGenerate, setShouldAutoGenerate] = useState<boolean>(false);
   const [isRefining, setIsRefining] = useState<boolean>(false);
+  const [refiningProgress, setRefiningProgress] = useState<number | null>(null);
+  const [refiningMessage, setRefiningMessage] = useState<string>('');
   const [hasCheckedAutoGen, setHasCheckedAutoGen] = useState<boolean>(false);
 
   // Use pagination hook for efficient transcript loading
@@ -193,11 +195,14 @@ function MeetingDetailsContent() {
     let cancelled = false;
     let unComplete: (() => void) | undefined;
     let unError: (() => void) | undefined;
+    let unProgress: (() => void) | undefined;
     const cleanupListeners = () => {
       unComplete?.();
       unError?.();
+      unProgress?.();
       unComplete = undefined;
       unError = undefined;
+      unProgress = undefined;
     };
 
     const finish = async (refined: boolean) => {
@@ -205,6 +210,8 @@ function MeetingDetailsContent() {
       cleanupListeners();
       if (cancelled) return;
       setIsRefining(false);
+      setRefiningProgress(null);
+      setRefiningMessage('');
       if (!refined) {
         toast.error('AI 精修失败，将基于实时草稿生成总结');
       }
@@ -231,6 +238,11 @@ function MeetingDetailsContent() {
       unError = await listen<any>('retranscription-error', async (e) => {
         if (e.payload?.meeting_id !== meetingId) return;
         await finish(false);
+      });
+      unProgress = await listen<any>('retranscription-progress', (e) => {
+        if (e.payload?.meeting_id !== meetingId) return;
+        setRefiningProgress(e.payload.progress_percentage ?? null);
+        setRefiningMessage(e.payload.message ?? '');
       });
     })();
 
@@ -432,6 +444,8 @@ function MeetingDetailsContent() {
     summaryData={meetingSummary}
     shouldAutoGenerate={shouldAutoGenerate}
     isRefining={isRefining}
+    refiningProgress={refiningProgress}
+    refiningMessage={refiningMessage}
     onAutoGenerateComplete={() => setShouldAutoGenerate(false)}
     onMeetingUpdated={async () => {
       // Refetch meeting details to get updated title from backend

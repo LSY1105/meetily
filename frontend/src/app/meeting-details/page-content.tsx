@@ -27,6 +27,8 @@ export default function PageContent({
   summaryData,
   shouldAutoGenerate = false,
   isRefining = false,
+  refiningProgress = null,
+  refiningMessage = '',
   onAutoGenerateComplete,
   onMeetingUpdated,
   onRefetchTranscripts,
@@ -42,6 +44,8 @@ export default function PageContent({
   summaryData: Summary | null;
   shouldAutoGenerate?: boolean;
   isRefining?: boolean;
+  refiningProgress?: number | null;
+  refiningMessage?: string;
   onAutoGenerateComplete?: () => void;
   onMeetingUpdated?: () => Promise<void>;
   onRefetchTranscripts?: () => Promise<void>;
@@ -186,6 +190,11 @@ export default function PageContent({
         <div className="flex items-center gap-2 px-4 py-1.5 bg-amber-50 border-b border-amber-200 text-xs text-amber-700">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
           正在使用 Whisper 精修全文，完成后将自动替换草稿并生成总结
+          {refiningProgress !== null && (
+            <span className="ml-2 font-medium">
+              {refiningProgress}%{refiningMessage ? ` · ${refiningMessage}` : ''}
+            </span>
+          )}
         </div>
       )}
       <div className="flex flex-1 overflow-hidden">

@@ -305,10 +305,16 @@ export function useRecordingStop(
           try {
             const prefs = await invoke<any>('get_recording_preferences');
             if (prefs?.auto_refine_whisper !== false && folderPath) {
+              // FIX: never pass null here. Whisper auto-detect fails on
+              // Chinese speech over music and hallucinates multilingual
+              // gibberish. Use the user's transcription language; default
+              // to zh for the same reason the realtime path does.
+              const lang = localStorage.getItem('primaryLanguage');
+              const language = !lang || lang === 'auto' ? 'zh' : lang;
               await invoke('start_retranscription_command', {
                 meetingId,
                 meetingFolderPath: folderPath,
-                language: null,
+                language,
                 model: 'large-v3-turbo-q5_0',
                 provider: 'whisper',
               });
