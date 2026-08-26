@@ -10,6 +10,7 @@ import { useTranslations } from 'next-intl';
 export interface RecordingPreferences {
   save_folder: string;
   auto_save: boolean;
+  auto_refine_whisper: boolean;
   file_format: string;
   preferred_mic_device: string | null;
   preferred_system_device: string | null;
@@ -23,6 +24,7 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
   const [preferences, setPreferences] = useState<RecordingPreferences>({
     save_folder: '',
     auto_save: true,
+    auto_refine_whisper: true,
     file_format: 'mp4',
     preferred_mic_device: null,
     preferred_system_device: null
@@ -77,6 +79,15 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
 
     // Track auto-save setting change
     await Analytics.track('auto_save_recording_toggled', {
+      enabled: enabled.toString()
+    });
+  };
+
+  const handleRefineToggle = async (enabled: boolean) => {
+    const newPreferences = { ...preferences, auto_refine_whisper: enabled };
+    setPreferences(newPreferences);
+    await savePreferences(newPreferences);
+    await Analytics.track('auto_refine_whisper_toggled', {
       enabled: enabled.toString()
     });
   };
@@ -174,6 +185,21 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
         <Switch
           checked={preferences.auto_save}
           onCheckedChange={handleAutoSaveToggle}
+          disabled={saving}
+        />
+      </div>
+
+      {/* Dual-engine: Whisper refinement toggle */}
+      <div className="flex items-center justify-between p-4 border rounded-lg">
+        <div className="flex-1">
+          <div className="font-medium">{t("recording.refine_toggle_label")}</div>
+          <div className="text-sm text-gray-600">
+            {t("recording.refine_toggle_desc")}
+          </div>
+        </div>
+        <Switch
+          checked={preferences.auto_refine_whisper}
+          onCheckedChange={handleRefineToggle}
           disabled={saving}
         />
       </div>

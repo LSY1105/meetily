@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Analytics from "@/lib/analytics";
 import { invoke } from "@tauri-apps/api/core";
 import { LoaderIcon } from "lucide-react";
+import { toast } from "sonner";
 import { useConfig } from "@/contexts/ConfigContext";
 import { usePaginatedTranscripts } from "@/hooks/usePaginatedTranscripts";
 
@@ -31,6 +32,7 @@ function MeetingDetailsContent() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [shouldAutoGenerate, setShouldAutoGenerate] = useState<boolean>(false);
+  const [isRefining, setIsRefining] = useState<boolean>(false);
   const [hasCheckedAutoGen, setHasCheckedAutoGen] = useState<boolean>(false);
 
   // Use pagination hook for efficient transcript loading
@@ -68,6 +70,15 @@ function MeetingDetailsContent() {
     // Only auto-generate if navigated from recording
     if (source !== 'recording') {
       console.log('Not from recording navigation, skipping auto-generation');
+      setHasCheckedAutoGen(true);
+      return;
+    }
+
+    // Dual-engine: if Whisper refinement is pending for this meeting, the
+    // summary must wait for the refined text (Option A). The refinement
+    // watcher effect triggers generation on completion.
+    if (meetingId && sessionStorage.getItem(`refining_${meetingId}`)) {
+      console.log('Refinement pending - summary deferred until it completes');
       setHasCheckedAutoGen(true);
       return;
     }
@@ -170,6 +181,64 @@ function MeetingDetailsContent() {
     setHasCheckedAutoGen(false);
     setShouldAutoGenerate(false);
   }, [meetingId]);
+
+  // Dual-engine watcher: when the stop flow queued a Whisper refinement
+  // for this meeting, defer summary generation until it completes (or
+  // fails - then fall back to summarizing the draft).
+  useEffect(() => {
+    if (!meetingId || meetingId === 'intro-call') return;
+    const flagKey = `refining_${meetingId}`;
+    if (!sessionStorage.getItem(flagKey)) return;
+
+    let cancelled = false;
+    let unComplete: (() => void) | undefined;
+    let unError: (() => void) | undefined;
+    const cleanupListeners = () => {
+      unComplete?.();
+      unError?.();
+      unComplete = undefined;
+      unError = undefined;
+    };
+
+    const finish = async (refined: boolean) => {
+      sessionStorage.removeItem(flagKey);
+      cleanupListeners();
+      if (cancelled) return;
+      setIsRefining(false);
+      if (!refined) {
+        toast.error('AI 精修失败，将基于实时草稿生成总结');
+      }
+      await refetch();
+      if (isAutoSummary) {
+        setShouldAutoGenerate(true);
+      }
+    };
+
+    (async () => {
+      // If the refinement already ended while we were away, use current text.
+      const inProgress = await invoke<boolean>('is_retranscription_in_progress_command').catch(() => false);
+      if (cancelled) return;
+      if (!inProgress) {
+        await finish(true);
+        return;
+      }
+      setIsRefining(true);
+      const { listen } = await import('@tauri-apps/api/event');
+      unComplete = await listen<any>('retranscription-complete', async (e) => {
+        if (e.payload?.meeting_id !== meetingId) return;
+        await finish(true);
+      });
+      unError = await listen<any>('retranscription-error', async (e) => {
+        if (e.payload?.meeting_id !== meetingId) return;
+        await finish(false);
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+      cleanupListeners();
+    };
+  }, [meetingId, refetch, isAutoSummary]);
 
   // Cleanup: Stop polling when navigating away from a meeting
   useEffect(() => {
@@ -362,6 +431,7 @@ function MeetingDetailsContent() {
     meeting={meetingDetails}
     summaryData={meetingSummary}
     shouldAutoGenerate={shouldAutoGenerate}
+    isRefining={isRefining}
     onAutoGenerateComplete={() => setShouldAutoGenerate(false)}
     onMeetingUpdated={async () => {
       // Refetch meeting details to get updated title from backend

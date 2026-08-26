@@ -59,5 +59,7 @@
   "orphan_checkpoint_recovering": "已启动恢复，进度请查看顶部提示",
   "orphan_checkpoint_recovered_failed": "恢复失败",
   "orphan_checkpoint_discarded": "录音已丢弃",
-  "orphan_checkpoint_discarded_failed": "丢弃失败"
+  "orphan_checkpoint_discarded_failed": "丢弃失败",
+  "refine_toggle_label": "AI 转写精修",
+  "refine_toggle_desc": "录音停止后自动用 Whisper 在后台重写全文提升准确率，完成后再生成总结"
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslations } from 'next-intl';
+import { invoke } from '@tauri-apps/api/core';
 import { useRouter } from 'next/navigation';
 import { listen } from '@/lib/transport';
 import { toast } from 'sonner';
@@ -297,6 +298,30 @@ export function useRecordingStop(
 
           // Mark meeting as saved in IndexedDB (for recovery system)
           await markMeetingAsSaved();
+
+          // Dual-engine: auto-refine the streaming draft with Whisper in the
+          // background. The details page waits for retranscription-complete
+          // before generating the summary (Option A: refine first).
+          try {
+            const prefs = await invoke<any>('get_recording_preferences');
+            if (prefs?.auto_refine_whisper !== false && folderPath) {
+              await invoke('start_retranscription_command', {
+                meetingId,
+                meetingFolderPath: folderPath,
+                language: null,
+                model: 'large-v3-turbo-q5_0',
+                provider: 'whisper',
+              });
+              sessionStorage.setItem(`refining_${meetingId}`, '1');
+              toast.info('AI 精修中', {
+                description: 'Whisper 正在后台重写全文，完成后将替换草稿并生成总结',
+                duration: 8000,
+              });
+            }
+          } catch (refineErr) {
+            // Non-fatal: fall back to summarizing the streaming draft.
+            console.warn('Auto-refinement not started:', refineErr);
+          }
 
           // Clean up session storage
           sessionStorage.removeItem('last_recording_folder_path');

@@ -10,7 +10,7 @@ import { TranscriptPanel } from '@/components/MeetingDetails/TranscriptPanel';
 import { SummaryPanel } from '@/components/MeetingDetails/SummaryPanel';
 import { ModelConfig } from '@/components/ModelSettingsModal';
 import { AskAiPanel } from '@/components/MeetingDetails/AskAiPanel';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Loader2 } from 'lucide-react';
 
 // Custom hooks
 import { useMeetingData } from '@/hooks/meeting-details/useMeetingData';
@@ -26,6 +26,7 @@ export default function PageContent({
   meeting,
   summaryData,
   shouldAutoGenerate = false,
+  isRefining = false,
   onAutoGenerateComplete,
   onMeetingUpdated,
   onRefetchTranscripts,
@@ -40,6 +41,7 @@ export default function PageContent({
   meeting: any;
   summaryData: Summary | null;
   shouldAutoGenerate?: boolean;
+  isRefining?: boolean;
   onAutoGenerateComplete?: () => void;
   onMeetingUpdated?: () => Promise<void>;
   onRefetchTranscripts?: () => Promise<void>;
@@ -180,6 +182,12 @@ export default function PageContent({
       transition={{ duration: 0.3, ease: 'easeOut' }}
       className="flex flex-col h-screen bg-gray-50"
     >
+      {isRefining && (
+        <div className="flex items-center gap-2 px-4 py-1.5 bg-amber-50 border-b border-amber-200 text-xs text-amber-700">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          正在使用 Whisper 精修全文，完成后将自动替换草稿并生成总结
+        </div>
+      )}
       <div className="flex flex-1 overflow-hidden">
         <TranscriptPanel
           transcripts={meetingData.transcripts}

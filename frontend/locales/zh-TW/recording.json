@@ -59,5 +59,7 @@
   "orphan_checkpoint_recovering": "已啟動恢復，進度請查看頂部提示",
   "orphan_checkpoint_recovered_failed": "恢復失敗",
   "orphan_checkpoint_discarded": "錄音已捨棄",
-  "orphan_checkpoint_discarded_failed": "捨棄失敗"
+  "orphan_checkpoint_discarded_failed": "捨棄失敗",
+  "refine_toggle_label": "AI 轉寫精修",
+  "refine_toggle_desc": "錄音停止後自動用 Whisper 在背景重寫全文提升準確率，完成後再生成總結"
 }

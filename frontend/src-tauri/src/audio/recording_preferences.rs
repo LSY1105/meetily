@@ -23,6 +23,14 @@ pub struct RecordingPreferences {
     #[cfg(target_os = "macos")]
     #[serde(default)]
     pub system_audio_backend: Option<String>,
+    /// Dual-engine: after stop, re-transcribe the saved audio with Whisper
+    /// in the background and replace the streaming draft. Default on.
+    #[serde(default = "default_true")]
+    pub auto_refine_whisper: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl Default for RecordingPreferences {
@@ -35,6 +43,7 @@ impl Default for RecordingPreferences {
             preferred_system_device: None,
             #[cfg(target_os = "macos")]
             system_audio_backend: Some("coreaudio".to_string()),
+            auto_refine_whisper: true,
         }
     }
 }
