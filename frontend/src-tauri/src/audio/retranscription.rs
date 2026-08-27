@@ -299,11 +299,35 @@ async fn run_retranscription<R: Runtime>(
         return Err(anyhow!("No speech detected in audio file"));
     }
 
+    emit_progress(&app, &meeting_id, "transcribing", 20, "Preparing transcription engine...");
+
+    // Initialize the appropriate engine once (not per-segment).
+    // Wrap in a timeout: whisper.cpp context creation is a blocking FFI
+    // call (mmap + GGML init) that can hang in pathological conditions
+    // (pathological disk I/O, stale file mmap, vendor library stalls).
+    // A 90s ceiling matches the empirical upper bound for loading a
+    // ~500 MB model on NVMe-class storage.
+    const LOAD_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(90);
     emit_progress(&app, &meeting_id, "transcribing", 25, "Loading transcription engine...");
 
-    // Initialize the appropriate engine once (not per-segment)
     let whisper_engine = if !use_parakeet {
-        Some(get_or_init_whisper(&app, model.as_deref()).await?)
+        match tokio::time::timeout(
+            LOAD_TIMEOUT,
+            get_or_init_whisper(&app, model.as_deref()),
+        )
+        .await
+        {
+            Ok(res) => Some(res?),
+            Err(_) => {
+                return Err(anyhow!(
+                    "Loading Whisper model '{}' timed out after {}s. \
+                     The model file may be locked, on slow storage, or still in use by another process. \
+                     Try a smaller model (large-v3-turbo-q5_0) or restart the app.",
+                    model.as_deref().unwrap_or("(default)"),
+                    LOAD_TIMEOUT.as_secs()
+                ));
+            }
+        }
     } else {
         None
     };
@@ -312,6 +336,7 @@ async fn run_retranscription<R: Runtime>(
     } else {
         None
     };
+    emit_progress(&app, &meeting_id, "transcribing", 26, "Engine ready.");
 
     // Split very long segments at silence boundaries for better transcription quality.
     // Hard cuts at arbitrary sample positions lose words at boundaries. Instead, scan
