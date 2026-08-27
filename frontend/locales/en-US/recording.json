@@ -61,5 +61,18 @@
   "orphan_checkpoint_discarded": "Recording discarded",
   "orphan_checkpoint_discarded_failed": "Discard failed",
   "refine_toggle_label": "AI transcript refinement",
-  "refine_toggle_desc": "After recording stops, re-transcribe the draft with Whisper in the background for higher accuracy, then generate the summary"
+  "refine_toggle_desc": "After recording stops, re-transcribe the draft with Whisper in the background for higher accuracy, then generate the summary",
+  "refine_model_label": "Refinement model",
+  "refine_model_desc": "Which Whisper model to use when re-transcribing the draft",
+  "refine_model_placeholder": "Select model",
+  "refine_model_default": "Default (large-v3-turbo-q5_0)",
+  "refine_no_models": "No Whisper model downloaded yet. Download one in the transcription model settings to enable refinement.",
+  "refine_model_info": "A larger model gives higher accuracy but takes longer to run.",
+  "refine_dialog_title": "AI transcript refinement",
+  "refine_dialog_desc": "Stop recording and refine the draft with Whisper in the background. The refined text replaces the draft, then the summary is generated.",
+  "refine_dialog_model": "Model: {model} ({sizeMb} MB)",
+  "refine_dialog_estimate": "Estimated time: {minutes} min for a {hours} hour recording",
+  "refine_dialog_confirm": "Refine now",
+  "refine_dialog_skip": "Summarize draft only",
+  "refine_dialog_summarize_only": "Generate summary from the current draft (faster, lower accuracy)"
 }

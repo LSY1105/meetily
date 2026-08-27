@@ -43,7 +43,7 @@ export default function Home() {
   const { handleRecordingStart } = useRecordingStart(showModal);
 
   // Get handleRecordingStop function and setIsStopping (state comes from global context)
-  const { handleRecordingStop, setIsStopping } = useRecordingStop(
+  const { handleRecordingStop, setIsStopping, refinementDialog } = useRecordingStop(
     setIsRecordingDisabled
   );
 
@@ -261,6 +261,7 @@ export default function Home() {
           sidebarCollapsed={sidebarCollapsed}
         />
       </div>
+      {refinementDialog}
     </motion.div>
   );
 }

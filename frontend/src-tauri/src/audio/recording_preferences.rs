@@ -27,6 +27,10 @@ pub struct RecordingPreferences {
     /// in the background and replace the streaming draft. Default on.
     #[serde(default = "default_true")]
     pub auto_refine_whisper: bool,
+    /// Dual-engine: which Whisper model to use for refinement. `None` falls
+    /// back to `large-v3-turbo-q5_0` (best speed/quality balance on CPU).
+    #[serde(default)]
+    pub refinement_whisper_model: Option<String>,
 }
 
 fn default_true() -> bool {
@@ -44,6 +48,7 @@ impl Default for RecordingPreferences {
             #[cfg(target_os = "macos")]
             system_audio_backend: Some("coreaudio".to_string()),
             auto_refine_whisper: true,
+            refinement_whisper_model: None,
         }
     }
 }

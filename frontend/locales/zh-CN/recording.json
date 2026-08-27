@@ -61,5 +61,18 @@
   "orphan_checkpoint_discarded": "录音已丢弃",
   "orphan_checkpoint_discarded_failed": "丢弃失败",
   "refine_toggle_label": "AI 转写精修",
-  "refine_toggle_desc": "录音停止后自动用 Whisper 在后台重写全文提升准确率，完成后再生成总结"
+  "refine_toggle_desc": "录音停止后自动用 Whisper 在后台重写全文提升准确率，完成后再生成总结",
+  "refine_model_label": "精修模型",
+  "refine_model_desc": "选择停止后用 Whisper 重写全文所用的模型",
+  "refine_model_placeholder": "选择模型",
+  "refine_model_default": "默认（large-v3-turbo-q5_0）",
+  "refine_no_models": "尚未下载任何 Whisper 模型，请先在转录模型设置里下载一个",
+  "refine_model_info": "模型越大精度越高，但耗时更长",
+  "refine_dialog_title": "AI 转写精修",
+  "refine_dialog_desc": "停止录音后用 Whisper 在后台重写草稿以提升准确率，完成后再生成总结。",
+  "refine_dialog_model": "模型：{model}（{sizeMb} MB）",
+  "refine_dialog_estimate": "预计耗时：{hours} 小时录音约 {minutes} 分钟",
+  "refine_dialog_confirm": "立即精修",
+  "refine_dialog_skip": "仅基于草稿总结",
+  "refine_dialog_summarize_only": "基于当前草稿生成总结（更快但准确率较低）"
 }

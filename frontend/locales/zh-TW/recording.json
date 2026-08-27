@@ -61,5 +61,18 @@
   "orphan_checkpoint_discarded": "錄音已捨棄",
   "orphan_checkpoint_discarded_failed": "捨棄失敗",
   "refine_toggle_label": "AI 轉寫精修",
-  "refine_toggle_desc": "錄音停止後自動用 Whisper 在背景重寫全文提升準確率，完成後再生成總結"
+  "refine_toggle_desc": "錄音停止後自動用 Whisper 在背景重寫全文提升準確率，完成後再生成總結",
+  "refine_model_label": "精修模型",
+  "refine_model_desc": "選擇停止後用 Whisper 重寫全文所用的模型",
+  "refine_model_placeholder": "選擇模型",
+  "refine_model_default": "預設（large-v3-turbo-q5_0）",
+  "refine_no_models": "尚未下載任何 Whisper 模型，請先在轉錄模型設定裡下載一個",
+  "refine_model_info": "模型越大精度越高，但耗時更長",
+  "refine_dialog_title": "AI 轉寫精修",
+  "refine_dialog_desc": "停止錄音後用 Whisper 在背景重寫草稿以提升準確率，完成後再產生總結。",
+  "refine_dialog_model": "模型：{model}（{sizeMb} MB）",
+  "refine_dialog_estimate": "預計耗時：{hours} 小時錄音約 {minutes} 分鐘",
+  "refine_dialog_confirm": "立即精修",
+  "refine_dialog_skip": "僅基於草稿總結",
+  "refine_dialog_summarize_only": "基於當前草稿產生總結（更快但準確率較低）"
 }

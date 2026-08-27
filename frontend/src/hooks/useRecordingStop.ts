@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { invoke } from '@tauri-apps/api/core';
 import { useRouter } from 'next/navigation';
@@ -9,6 +9,7 @@ import { useSidebar } from '@/components/Sidebar/SidebarProvider';
 import { useRecordingState, RecordingStatus } from '@/contexts/RecordingStateContext';
 import { storageService } from '@/services/storageService';
 import { transcriptService } from '@/services/transcriptService';
+import { RefinementConfirmDialog } from '@/components/MeetingDetails/RefinementConfirmDialog';
 import Analytics from '@/lib/analytics';
 import {
   applyPinnedSummaryLanguageToMeeting,
@@ -24,6 +25,7 @@ interface UseRecordingStopReturn {
   isSavingTranscript: boolean;
   summaryStatus: SummaryStatus;
   setIsStopping: (value: boolean) => void;
+  refinementDialog: React.ReactNode;
 }
 
 /**
@@ -77,6 +79,21 @@ export function useRecordingStop(
 
   // Promise to track recording-stopped event data (fixes race condition with recording-stop-complete)
   const recordingStoppedDataRef = useRef<Promise<void> | null>(null);
+
+  // Refinement confirmation dialog state.
+  const [refineDialog, setRefineDialog] = useState({
+    open: false,
+    modelName: 'large-v3-turbo-q5_0' as string,
+    modelSizeMb: 0,
+    recordingMinutes: 0,
+  });
+  // Pending refinement parameters captured when the dialog opens; read by
+  // confirm/skip handlers. Kept in a ref so changes don't trigger re-renders.
+  const pendingRefineRef = useRef<{
+    meetingId: string;
+    folderPath: string;
+    language: string;
+  }>({ meetingId: '', folderPath: '', language: 'zh' });
 
   // Set up recording-stopped listener for meeting navigation
   useEffect(() => {
@@ -299,9 +316,10 @@ export function useRecordingStop(
           // Mark meeting as saved in IndexedDB (for recovery system)
           await markMeetingAsSaved();
 
-          // Dual-engine: auto-refine the streaming draft with Whisper in the
-          // background. The details page waits for retranscription-complete
-          // before generating the summary (Option A: refine first).
+          // Dual-engine: confirm with the user before kicking off the Whisper
+          // refinement (it's expensive on CPU — turbo-q5_0 takes ~5-10
+          // minutes per hour of recording). The details page waits for
+          // retranscription-complete before generating the summary.
           try {
             const prefs = await invoke<any>('get_recording_preferences');
             if (prefs?.auto_refine_whisper !== false && folderPath) {
@@ -311,22 +329,39 @@ export function useRecordingStop(
               // to zh for the same reason the realtime path does.
               const lang = localStorage.getItem('primaryLanguage');
               const language = !lang || lang === 'auto' ? 'zh' : lang;
-              await invoke('start_retranscription_command', {
-                meetingId,
-                meetingFolderPath: folderPath,
-                language,
-                model: 'large-v3-turbo-q5_0',
-                provider: 'whisper',
-              });
-              sessionStorage.setItem(`refining_${meetingId}`, '1');
-              toast.info('AI 精修中', {
-                description: 'Whisper 正在后台重写全文，完成后将替换草稿并生成总结',
-                duration: 8000,
+
+              // Compute recording duration from the fresh transcripts so
+              // the dialog can give an accurate time estimate.
+              const durMs = freshTranscripts.length > 0
+                ? Math.max(...freshTranscripts.map((t) => Number(t.audio_end_time ?? t.duration ?? 0))) * 1000
+                : 0;
+              const recordingMinutes = Math.max(1, Math.round(durMs / 60000));
+
+              // Resolve chosen model + size. An empty/unset preference
+              // means "use the default" (turbo-q5_0, size known by the
+              // backend catalog).
+              const chosenModel: string = prefs?.refinement_whisper_model || 'default';
+              let modelSizeMb = 0;
+              try {
+                const list = (await invoke<any[]>('whisper_get_available_models')) ?? [];
+                const m = list.find((x) => x.name === chosenModel);
+                if (m) modelSizeMb = Number(m.size_mb ?? 0);
+              } catch {
+                /* non-fatal */
+              }
+
+              // Stash params for the confirm handler; show the dialog.
+              pendingRefineRef.current = { meetingId, folderPath, language };
+              setRefineDialog({
+                open: true,
+                modelName: chosenModel,
+                modelSizeMb,
+                recordingMinutes,
               });
             }
           } catch (refineErr) {
             // Non-fatal: fall back to summarizing the streaming draft.
-            console.warn('Auto-refinement not started:', refineErr);
+            console.warn('Auto-refinement setup failed:', refineErr);
           }
 
           // Clean up session storage
@@ -498,6 +533,41 @@ export function useRecordingStop(
   // Derive summaryStatus from RecordingStatus for backward compatibility
   const summaryStatus: SummaryStatus = status === RecordingStatus.PROCESSING_TRANSCRIPTS ? 'processing' : 'idle';
 
+  const refinementDialogElement = React.createElement(RefinementConfirmDialog, {
+    open: refineDialog.open,
+    modelName: refineDialog.modelName,
+    modelSizeMb: refineDialog.modelSizeMb,
+    recordingMinutes: refineDialog.recordingMinutes,
+    onConfirm: async () => {
+      const { meetingId, folderPath, language } = pendingRefineRef.current;
+      setRefineDialog((d) => ({ ...d, open: false }));
+      try {
+        await invoke('start_retranscription_command', {
+          meetingId,
+          meetingFolderPath: folderPath,
+          language,
+          // Empty string = use the configured default (turbo-q5_0).
+          model: refineDialog.modelName === 'default' || !refineDialog.modelName
+            ? ''
+            : refineDialog.modelName,
+          provider: 'whisper',
+        });
+        sessionStorage.setItem(`refining_${meetingId}`, '1');
+        toast.info('AI 精修已启动', {
+          description: 'Whisper 正在后台重写全文，完成后将替换草稿并生成总结',
+          duration: 8000,
+        });
+      } catch (refineErr) {
+        console.warn('Refinement not started:', refineErr);
+        toast.error('AI 精修启动失败', {
+          description:
+            refineErr instanceof Error ? refineErr.message : String(refineErr),
+        });
+      }
+    },
+    onSkip: () => setRefineDialog((d) => ({ ...d, open: false })),
+  });
+
   return {
     handleRecordingStop,
     isStopping,
@@ -507,5 +577,6 @@ export function useRecordingStop(
     setIsStopping: (value: boolean) => {
       setStatus(value ? RecordingStatus.STOPPING : RecordingStatus.IDLE);
     },
+    refinementDialog: refinementDialogElement,
   };
 }

@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { FolderOpen } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { DeviceSelection, SelectedDevices } from '@/components/DeviceSelection';
@@ -7,10 +8,19 @@ import Analytics from '@/lib/analytics';
 import { toast } from 'sonner';
 import { useTranslations } from 'next-intl';
 
+interface WhisperModelInfo {
+  name: string;
+  size_mb: number;
+  accuracy: string;
+  speed: string;
+  description: string;
+}
+
 export interface RecordingPreferences {
   save_folder: string;
   auto_save: boolean;
   auto_refine_whisper: boolean;
+  refinement_whisper_model?: string | null;
   file_format: string;
   preferred_mic_device: string | null;
   preferred_system_device: string | null;
@@ -25,10 +35,12 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
     save_folder: '',
     auto_save: true,
     auto_refine_whisper: true,
+    refinement_whisper_model: null,
     file_format: 'mp4',
     preferred_mic_device: null,
     preferred_system_device: null
   });
+  const [availableWhisperModels, setAvailableWhisperModels] = useState<WhisperModelInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showRecordingNotification, setShowRecordingNotification] = useState(true);
@@ -79,15 +91,6 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
 
     // Track auto-save setting change
     await Analytics.track('auto_save_recording_toggled', {
-      enabled: enabled.toString()
-    });
-  };
-
-  const handleRefineToggle = async (enabled: boolean) => {
-    const newPreferences = { ...preferences, auto_refine_whisper: enabled };
-    setPreferences(newPreferences);
-    await savePreferences(newPreferences);
-    await Analytics.track('auto_refine_whisper_toggled', {
       enabled: enabled.toString()
     });
   };
@@ -156,6 +159,49 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
     }
   };
 
+  const loadWhisperModels = useCallback(async () => {
+    try {
+      const list = (await invoke<any[]>('whisper_get_available_models')) ?? [];
+      const downloaded = list
+        .filter((m: any) => m.status === 'Available' || m.status === 'Downloading')
+        .map((m: any) => ({
+          name: String(m.name),
+          size_mb: Number(m.size_mb ?? 0),
+          accuracy: String(m.accuracy ?? ''),
+          speed: String(m.speed ?? ''),
+          description: String(m.description ?? ''),
+        }));
+      setAvailableWhisperModels(downloaded);
+    } catch (err) {
+      console.error('Failed to load whisper models:', err);
+      setAvailableWhisperModels([]);
+    }
+  }, []);
+
+  const handleRefineModelChange = useCallback(async (modelName: string) => {
+    const newPreferences = { ...preferences, refinement_whisper_model: modelName };
+    setPreferences(newPreferences);
+    await savePreferences(newPreferences);
+    await Analytics.track('refinement_whisper_model_changed', { model: modelName });
+  }, [preferences, savePreferences]);
+
+  const handleRefineToggle = async (enabled: boolean) => {
+    const newPreferences = { ...preferences, auto_refine_whisper: enabled };
+    setPreferences(newPreferences);
+    await savePreferences(newPreferences);
+    await Analytics.track('auto_refine_whisper_toggled', {
+      enabled: enabled.toString()
+    });
+  };
+
+  useEffect(() => {
+    loadWhisperModels();
+  }, [loadWhisperModels]);
+
+  useEffect(() => {
+    loadWhisperModels();
+  }, [loadWhisperModels]);
+
   if (loading) {
     return (
       <div className="animate-pulse">
@@ -203,6 +249,42 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
           disabled={saving}
         />
       </div>
+
+      {/* Dual-engine: Whisper model selector (visible when refinement is enabled) */}
+      {preferences.auto_refine_whisper && (
+        <div className="p-4 border rounded-lg bg-gray-50 space-y-3">
+          <div>
+            <div className="font-medium">{t("recording.refine_model_label")}</div>
+            <div className="text-sm text-gray-600">
+              {t("recording.refine_model_desc")}
+            </div>
+          </div>
+          {availableWhisperModels.length === 0 ? (
+            <p className="text-sm text-amber-700">
+              {t("recording.refine_no_models")}
+            </p>
+          ) : (
+            <Select
+              value={preferences.refinement_whisper_model ?? 'default'}
+              onValueChange={(v) => handleRefineModelChange(v === 'default' ? '' : v)}
+              disabled={saving}
+            >
+              <SelectTrigger className="bg-white">
+                <SelectValue placeholder={t("recording.refine_model_placeholder")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">{t("recording.refine_model_default")}</SelectItem>
+                {availableWhisperModels.map((m) => (
+                  <SelectItem key={m.name} value={m.name}>
+                    {m.name} ({m.size_mb} MB · {m.speed})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <p className="text-xs text-gray-500">{t("recording.refine_model_info")}</p>
+        </div>
+      )}
 
       {/* Folder Location - Only shown when auto_save is enabled */}
       {preferences.auto_save && (

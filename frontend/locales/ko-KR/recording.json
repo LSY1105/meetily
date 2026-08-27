@@ -61,5 +61,18 @@
   "orphan_checkpoint_discarded": "녹음 삭제 완료",
   "orphan_checkpoint_discarded_failed": "삭제 실패",
   "refine_toggle_label": "AI 전사 정제",
-  "refine_toggle_desc": "녹음 중지 후 Whisper로 백그라운드에서 전체 텍스트를 재전사하여 정확도를 높인 뒤 요약을 생성합니다"
+  "refine_toggle_desc": "녹음 중지 후 Whisper로 백그라운드에서 전체 텍스트를 재전사하여 정확도를 높인 뒤 요약을 생성합니다",
+  "refine_model_label": "정제 모델",
+  "refine_model_desc": "정지 후 Whisper로 전체 텍스트를 다시 정사할 때 사용할 모델",
+  "refine_model_placeholder": "모델 선택",
+  "refine_model_default": "기본 (large-v3-turbo-q5_0)",
+  "refine_no_models": "Whisper 모델이 아직 다운로드되지 않았습니다. 전사 모델 설정에서 다운로드하세요.",
+  "refine_model_info": "모델이 클수록 정확도는 높아지지만 처리 시간이 늘어납니다.",
+  "refine_dialog_title": "AI 전사 정제",
+  "refine_dialog_desc": "녹음을 중지하고 백그라운드에서 Whisper가 초안을 정제합니다. 정제 후 요약이 생성됩니다.",
+  "refine_dialog_model": "모델: {model} ({sizeMb} MB)",
+  "refine_dialog_estimate": "예상 시간: {hours}시간 녹음에 약 {minutes}분",
+  "refine_dialog_confirm": "지금 정제",
+  "refine_dialog_skip": "초안으로만 요약",
+  "refine_dialog_summarize_only": "현재 초안으로 요약 생성 (빠르지만 정확도 낮음)"
 }

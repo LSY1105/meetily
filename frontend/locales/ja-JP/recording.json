@@ -61,5 +61,18 @@
   "orphan_checkpoint_discarded": "録音を破棄しました",
   "orphan_checkpoint_discarded_failed": "破棄に失敗しました",
   "refine_toggle_label": "AI 文字起こし精錬",
-  "refine_toggle_desc": "録音停止後、Whisper でバックグラウンドに全文を再認識し精度を向上させてから要約を生成します"
+  "refine_toggle_desc": "録音停止後、Whisper でバックグラウンドに全文を再認識し精度を向上させてから要約を生成します",
+  "refine_model_label": "精錬モデル",
+  "refine_model_desc": "停止後に草稿を Whisper で書き直す際に使用するモデル",
+  "refine_model_placeholder": "モデルを選択",
+  "refine_model_default": "デフォルト (large-v3-turbo-q5_0)",
+  "refine_no_models": "Whisper モデルがまだダウンロードされていません。文字起こしモデル設定でダウンロードしてください。",
+  "refine_model_info": "モデルが大きいほど精度が上がりますが、処理時間が長くなります。",
+  "refine_dialog_title": "AI 文字起こし精錬",
+  "refine_dialog_desc": "録音を停止し、バックグラウンドで Whisper が草稿を精錬します。精錬後に要約が生成されます。",
+  "refine_dialog_model": "モデル: {model} ({sizeMb} MB)",
+  "refine_dialog_estimate": "推定時間: {hours} 時間の録音で約 {minutes} 分",
+  "refine_dialog_confirm": "今すぐ精錬",
+  "refine_dialog_skip": "草稿のみで要約",
+  "refine_dialog_summarize_only": "現在の草稿から要約を生成（高速だが精度は低）"
 }
