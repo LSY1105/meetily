@@ -44,6 +44,7 @@ All notable changes to QMeetily are documented here.
 - [x] **Next.js frontend build** ✅ — 4 static pages, 87.3 KB shared bundle
 - [x] **Frontend integration** ✅ — Sidebar + 3 views + Recording button + Recent list, TypeScript 0 errors
 - [x] **ASR pipeline** ✅ — Qwen3-ASR-0.6B Python sidecar, HTTP 200 in 5.58s, language auto-detect
+- [x] **Real meeting pipeline test** ✅ — Windows SAPI TTS → ASR (100% char-accurate) → LLM summary (5-section Markdown)
 - [ ] Sidecar auto-launch (currently manual uvicorn)
 - [ ] Streaming ASR partial updates UI
 - [ ] Tauri GUI launch (requires desktop, not headless)

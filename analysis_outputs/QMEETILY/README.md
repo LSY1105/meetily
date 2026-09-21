@@ -100,6 +100,7 @@ See `docs/ARCHITECTURE.md`.
 - `docs/TAURI_INTEGRATION_VERIFICATION.md` — **Tauri build + integration verified**
 - `docs/FRONTEND_INTEGRATION.md` — **Sidebar + 3 views + Recording wired**
 - `docs/ASR_PIPELINE.md` — **end-to-end Qwen3-ASR (verified working)**
+- `docs/REAL_MEETING_TEST.md` — **real meeting audio (Windows SAPI) → ASR → LLM summary, full pipeline**
 - `docs/ARCHITECTURE.md` — code structure & borrowed patterns
 - `../FULL_CODE_AUDIT.md` — what we learned from meetily
 - `../MARKET_GAP_ANALYSIS.md` — competitive landscape
