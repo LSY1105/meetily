@@ -42,3 +42,9 @@ crates/qmeetily-app/target/
 
 # Cargo lock (deps are reproducible from Cargo.toml)
 Cargo.lock
+
+# TTS repo is a runtime dependency — install via `git clone https://github.com/QwenLM/Qwen3-TTS sidecar/Qwen3-TTS`
+# Only commit the qwen_tts package source (what we import) + our ARM64-Win stub.
+sidecar/Qwen3-TTS/
+!sidecar/Qwen3-TTS/qwen_tts/
+!sidecar/Qwen3-TTS/qwen3_tts_stub.py

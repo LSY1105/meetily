@@ -49,13 +49,14 @@ The correct path is much simpler:
 | **Tauri integration** | ✅ **`qmeetily.exe` (9.8 MB) builds + Tauri commands wired** |
 | **Frontend integration** | ✅ **Sidebar + 3 views + Recording button + Recent list, TypeScript 0 errors** |
 | **ASR pipeline** | ✅ **Qwen3-ASR-0.6B sidecar, HTTP 200 in 5.58s, language auto-detect** |
+| **TTS pipeline** | ✅ **Qwen3-TTS-0.6B-Base, 6.48s WAV output, voice clone works** |
 | DB schema (meetings/transcripts/decisions/summaries) | ✅ Defined |
 | Tauri commands (12 commands) | ✅ Skeleton |
 | MCP server (4 tools) | ✅ stdlib impl (no rmcp) |
 | Unit tests | ✅ **16/16 passing** |
 | Streaming ASR + sidecar auto-launch | ⏳ Future (v0.2) |
 
-See `docs/LLM_VERIFICATION.md`, `docs/AUDIO_VERIFICATION.md`, `docs/TAURI_INTEGRATION_VERIFICATION.md`, `docs/FRONTEND_INTEGRATION.md`, and `docs/ASR_PIPELINE.md`.
+See `docs/LLM_VERIFICATION.md`, `docs/AUDIO_VERIFICATION.md`, `docs/TAURI_INTEGRATION_VERIFICATION.md`, `docs/FRONTEND_INTEGRATION.md`, `docs/ASR_PIPELINE.md`, and `docs/TTS_PIPELINE.md`.
 
 ## How to run
 
