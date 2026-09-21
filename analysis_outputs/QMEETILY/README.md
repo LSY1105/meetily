@@ -48,13 +48,14 @@ The correct path is much simpler:
 | **Audio capture + VAD end-to-end** | ✅ **48 kHz/2ch capture, auto-downmix to mono, VAD classifies** |
 | **Tauri integration** | ✅ **`qmeetily.exe` (9.8 MB) builds + Tauri commands wired** |
 | **Frontend integration** | ✅ **Sidebar + 3 views + Recording button + Recent list, TypeScript 0 errors** |
+| **ASR pipeline** | ✅ **Qwen3-ASR-0.6B sidecar, HTTP 200 in 5.58s, language auto-detect** |
 | DB schema (meetings/transcripts/decisions/summaries) | ✅ Defined |
-| Tauri commands (10 commands) | ✅ Skeleton |
+| Tauri commands (12 commands) | ✅ Skeleton |
 | MCP server (4 tools) | ✅ stdlib impl (no rmcp) |
 | Unit tests | ✅ **16/16 passing** |
-| Ollama Qwen3-ASR path (v0.2 enhancement) | ⏳ Future |
+| Streaming ASR + sidecar auto-launch | ⏳ Future (v0.2) |
 
-See `docs/LLM_VERIFICATION.md`, `docs/AUDIO_VERIFICATION.md`, `docs/TAURI_INTEGRATION_VERIFICATION.md`, and `docs/FRONTEND_INTEGRATION.md`.
+See `docs/LLM_VERIFICATION.md`, `docs/AUDIO_VERIFICATION.md`, `docs/TAURI_INTEGRATION_VERIFICATION.md`, `docs/FRONTEND_INTEGRATION.md`, and `docs/ASR_PIPELINE.md`.
 
 ## How to run
 
@@ -98,6 +99,7 @@ See `docs/ARCHITECTURE.md`.
 - `docs/AUDIO_VERIFICATION.md` — **end-to-end audio + VAD smoke test (verified working)**
 - `docs/TAURI_INTEGRATION_VERIFICATION.md` — **Tauri build + integration verified**
 - `docs/FRONTEND_INTEGRATION.md` — **Sidebar + 3 views + Recording wired**
+- `docs/ASR_PIPELINE.md` — **end-to-end Qwen3-ASR (verified working)**
 - `docs/ARCHITECTURE.md` — code structure & borrowed patterns
 - `../FULL_CODE_AUDIT.md` — what we learned from meetily
 - `../MARKET_GAP_ANALYSIS.md` — competitive landscape

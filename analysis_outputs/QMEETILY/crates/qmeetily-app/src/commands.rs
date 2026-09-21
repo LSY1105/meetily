@@ -1,18 +1,20 @@
 //! Tauri commands — thin adapters.
 //!
-//! All real logic lives in services. Commands here only bridge Tauri IPC to
+//! Real logic lives in services. Commands here only bridge Tauri IPC to
 //! the underlying modules. The old meetily `summary_engine::commands` was
 //! deleted (it was tightly coupled to meetily's `State<ModelManagerState>`)
 //! and replaced with these slimmer wrappers that use `Arc<AppState>`.
+
+use std::sync::Arc;
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::db::meetings::Meeting;
-use crate::db::transcripts::Transcript;
+use crate::db::transcripts::{NewTranscript, Transcript};
 use crate::state::{AppState, RecordingState};
 use crate::error::Result;
-use crate::summary_engine::{ModelDef, SidecarManager, LlmClient};
+use crate::summary_engine::models::ModelDef;
 
 #[derive(Debug, Serialize)]
 pub struct AppInfo {
@@ -55,6 +57,23 @@ pub async fn start_recording(
     };
     let meeting_id = state.db().create_meeting(&new_meeting).await?;
     state.set_recording(RecordingState::Recording)?;
+
+    // If ASR client is configured, spawn the audio capture + ASR pipeline.
+    // v0.1: only start the sidecar connection; full streaming pipeline lands in v0.2.
+    if let Some(asr_url) = state.config().asr_url.clone() {
+        match crate::asr::build_client(&asr_url, state.config().asr_model.clone()) {
+            Ok(client) => {
+                if let Err(e) = client.health().await {
+                    tracing::warn!("ASR sidecar not healthy at {}: {e}", asr_url);
+                } else {
+                    state.set_asr(Arc::new(client));
+                    tracing::info!("ASR client ready at {}", asr_url);
+                }
+            }
+            Err(e) => tracing::warn!("Failed to build ASR client: {e}"),
+        }
+    }
+
     let _ = app.emit("recording-started", meeting_id);
     Ok(meeting_id)
 }
@@ -69,6 +88,7 @@ pub async fn stop_recording(
     state.set_recording(RecordingState::Stopping)?;
     state.db().end_meeting(meeting_id, Utc::now()).await?;
     state.set_recording(RecordingState::Idle)?;
+    state.clear_asr();
     let _ = app.emit("recording-stopped", meeting_id);
     Ok(())
 }
@@ -106,16 +126,15 @@ pub async fn get_available_models() -> Result<Vec<ModelDef>> {
     Ok(crate::summary_engine::get_available_models())
 }
 
-/// Generate a summary using the local llama-helper sidecar.
-///
-/// Spawns the sidecar if not running, streams generation, persists to DB.
-/// This is the main LLM call from the UI.
 #[tauri::command]
 pub async fn generate_summary(
     app: AppHandle,
     state: State<'_, AppState>,
     meeting_id: i64,
 ) -> Result<String> {
+    use crate::summary_engine::client::LlmClient;
+    use crate::summary_engine::sidecar::SidecarManager;
+
     let transcripts = state.db().get_meeting_transcripts(meeting_id).await?;
     let full_text: String = transcripts
         .iter()
@@ -124,10 +143,10 @@ pub async fn generate_summary(
         .collect::<Vec<_>>()
         .join("\n");
 
-    let data_dir = state.config().data_dir.clone();
-    let mgr = SidecarManager::new(data_dir.clone()).map_err(crate::error::AppError::Other)?;
+    let mgr = SidecarManager::new(state.config().data_dir.clone())
+        .map_err(crate::error::AppError::Other)?;
     let mgr = std::sync::Arc::new(mgr);
-    let client = LlmClient::new(mgr.clone(), data_dir);
+    let client = LlmClient::new(mgr.clone(), state.config().data_dir.clone());
 
     let _ = app.emit("summary-progress", "");
     let model_name = state.config().preferred_llm_model.clone();
@@ -151,4 +170,53 @@ pub async fn generate_summary(
     mgr.shutdown().await.ok();
     let _ = app.emit("summary-ready", summary.clone());
     Ok(summary)
+}
+
+/// Insert a transcript segment from the ASR pipeline.
+/// Called from the audio pipeline after each recognized utterance.
+#[tauri::command]
+pub async fn push_transcript_segment(
+    state: State<'_, AppState>,
+    meeting_id: i64,
+    sequence_id: i64,
+    start_ms: i32,
+    end_ms: i32,
+    text: String,
+    language: Option<String>,
+    confidence: Option<f32>,
+) -> Result<i64> {
+    let t = NewTranscript {
+        meeting_id,
+        sequence_id,
+        start_ms,
+        end_ms,
+        text,
+        rewritten_text: None,
+        language,
+        speaker_label: None,
+        confidence,
+        is_partial: false,
+    };
+    let id = state.db().insert_transcript(&t).await?;
+    Ok(id)
+}
+
+/// Transcribe a captured audio buffer via the ASR sidecar.
+/// Used by the audio pipeline for batch-mode ASR (v0.1).
+#[tauri::command]
+pub async fn transcribe_chunk(
+    state: State<'_, AppState>,
+    samples: Vec<f32>,
+    sample_rate: u32,
+    language: Option<String>,
+) -> Result<crate::asr::TranscribeResult> {
+    let client = state
+        .asr()
+        .ok_or(crate::error::AppError::NotInitialized("ASR client"))?;
+    let chunk = crate::asr::TranscribeChunk {
+        samples,
+        sample_rate,
+        language_hint: language,
+    };
+    client.transcribe(&chunk).await
 }

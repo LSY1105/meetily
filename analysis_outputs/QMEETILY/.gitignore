@@ -21,6 +21,16 @@ models/
 
 # Logs
 *.log
+sidecar.log
+sidecar.err
+sidecar.out
+
+# Python build artifacts
+*.egg-info/
+**/__pycache__/
+*.pyc
+*.pyo
+*.spec
 
 # OS
 Thumbs.db

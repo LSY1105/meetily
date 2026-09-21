@@ -6,6 +6,7 @@
 pub mod error;
 pub mod state;
 pub mod audio;
+pub mod asr;
 pub mod db;
 pub mod commands;
 pub mod mcp;

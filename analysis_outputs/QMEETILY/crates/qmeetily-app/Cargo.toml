@@ -56,3 +56,6 @@ name = "llm_smoke_test"
 
 [[example]]
 name = "audio_smoke_test"
+
+[[example]]
+name = "asr_smoke_test"

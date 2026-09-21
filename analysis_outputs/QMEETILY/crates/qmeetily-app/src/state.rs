@@ -1,13 +1,12 @@
 //! Single source of truth: Arc<AppState>.
 //!
-//! Borrowed from meetily, simplified: no globals, no static AtomicBool,
-//! no LazyLock<Mutex>. The llama-helper sidecar (LLM) is spawned on demand
-//! from `commands::generate_summary` via `summary_engine::sidecar::SidecarManager`.
+//! No globals, no static AtomicBool, no LazyLock<Mutex>.
 
 use std::sync::Arc;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 
+use crate::asr::AsrClient;
 use crate::db::Db;
 use crate::error::Result;
 
@@ -15,6 +14,7 @@ pub struct AppState {
     recording: RwLock<RecordingState>,
     db: Arc<Db>,
     config: RwLock<AppConfig>,
+    asr: RwLock<Option<Arc<AsrClient>>>,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -31,6 +31,10 @@ pub struct AppConfig {
     pub models_dir: std::path::PathBuf,
     pub data_dir: std::path::PathBuf,
     pub preferred_llm_model: String,
+    /// URL of the Qwen3-ASR sidecar (Python). None = ASR disabled.
+    pub asr_url: Option<String>,
+    /// ASR model name (sent to sidecar).
+    pub asr_model: Option<String>,
 }
 
 impl Default for AppConfig {
@@ -41,9 +45,10 @@ impl Default for AppConfig {
         Self {
             models_dir: data_dir.join("models"),
             data_dir: data_dir.clone(),
-            // Default to qwen3.5:2b — small, fast, 1.2GB; works on 8GB RAM.
-            // User can switch to qwen3.5:4b (2.6GB) in Settings.
             preferred_llm_model: "qwen3.5:2b".into(),
+            asr_url: std::env::var("QMEETILY_ASR_URL").ok()
+                .or_else(|| Some("http://127.0.0.1:11436".into())),
+            asr_model: Some("Qwen/Qwen3-ASR-0.6B".into()),
         }
     }
 }
@@ -61,6 +66,7 @@ impl AppState {
             recording: RwLock::new(RecordingState::Idle),
             db,
             config: RwLock::new(config),
+            asr: RwLock::new(None),
         })
     }
 
@@ -73,6 +79,7 @@ impl AppState {
             recording: RwLock::new(RecordingState::Idle),
             db,
             config: RwLock::new(config),
+            asr: RwLock::new(None),
         })
     }
 
@@ -112,6 +119,18 @@ impl AppState {
 
     pub fn update_config<F>(&self, f: F) where F: FnOnce(&mut AppConfig) {
         f(&mut self.config.write());
+    }
+
+    pub fn set_asr(&self, client: Arc<AsrClient>) {
+        *self.asr.write() = Some(client);
+    }
+
+    pub fn asr(&self) -> Option<Arc<AsrClient>> {
+        self.asr.read().clone()
+    }
+
+    pub fn clear_asr(&self) {
+        *self.asr.write() = None;
     }
 }
 

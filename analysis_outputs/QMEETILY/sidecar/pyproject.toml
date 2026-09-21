@@ -1,0 +1,27 @@
+[project]
+name = "qmeetily-sidecar-asr"
+version = "0.1.0"
+description = "QMeetily ASR sidecar — Qwen3-ASR over HTTP for the qmeetily desktop app"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "python-multipart>=0.0.20",
+    "pydantic>=2.0",
+    "qwen-asr>=0.0.6",
+    "torch>=2.1; platform_machine != 'aarch64'",
+    "torch>=2.1, <3; sys_platform == 'linux' or sys_platform == 'darwin' or sys_platform == 'win32'",
+    "soundfile>=0.12",
+    "numpy",
+]
+
+[project.scripts]
+qmeetily-sidecar-asr = "qmeetily_sidecar_asr.server:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["qmeetily_sidecar_asr*"]
