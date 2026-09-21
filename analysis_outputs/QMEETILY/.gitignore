@@ -1,0 +1,34 @@
+# Frontend
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# Rust
+**/target/
+
+# Local data
+*.db
+*.db-wal
+*.db-shm
+*.gguf
+
+# IDE
+.vscode/
+.idea/
+
+# Models (downloaded by app, not source)
+models/
+
+# Logs
+*.log
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Tauri generated
+crates/qmeetily-app/gen/
+crates/qmeetily-app/target/
+
+# Cargo lock (deps are reproducible from Cargo.toml)
+Cargo.lock

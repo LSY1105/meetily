@@ -1,0 +1,16 @@
+[package]
+name = "qmeetily-mcp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "qmeetily-mcp"
+path = "src/main.rs"
+
+[dependencies]
+qmeetily-lib = { path = "../qmeetily-app", package = "qmeetily-app" }
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+anyhow.workspace = true

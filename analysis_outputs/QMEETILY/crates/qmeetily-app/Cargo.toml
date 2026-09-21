@@ -1,0 +1,58 @@
+[package]
+name = "qmeetily-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "qmeetily_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "qmeetily"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { workspace = true }
+
+[dependencies]
+anyhow.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+async-trait.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+
+cpal.workspace = true
+sqlx.workspace = true
+rusqlite.workspace = true
+
+tauri.workspace = true
+tauri-plugin-fs.workspace = true
+tauri-plugin-notification.workspace = true
+tauri-plugin-store.workspace = true
+tauri-plugin-dialog.workspace = true
+
+reqwest.workspace = true
+
+# Borrowed from meetily: required by summary_engine
+log = "0.4"
+once_cell = "1.20"
+tokio-util = "0.7"
+dirs = "5.0"
+crossbeam = "0.8"
+futures-util = "0.3"
+parking_lot = "0.12"
+
+# MCP is implemented in-house (qmeetily_lib::mcp) — see crates/qmeetily-app/src/mcp.rs
+# Uses pure std JSON-RPC over stdio. No external deps.
+
+[[example]]
+name = "llm_smoke_test"
+
+[[example]]
+name = "audio_smoke_test"

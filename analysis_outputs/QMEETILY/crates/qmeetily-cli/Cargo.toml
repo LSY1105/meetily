@@ -1,0 +1,19 @@
+[package]
+name = "qmeetily-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "qmeetily-cli"
+path = "src/main.rs"
+
+[dependencies]
+qmeetily-lib = { path = "../qmeetily-app", package = "qmeetily-app" }
+clap.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+chrono.workspace = true

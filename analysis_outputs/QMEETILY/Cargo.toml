@@ -1,0 +1,69 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/qmeetily-app",
+    "crates/qmeetily-mcp",
+    "crates/qmeetily-cli",
+    "crates/llama-helper",  # copied verbatim from meetily
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.77"
+license = "Apache-2.0"
+
+[workspace.dependencies]
+# Core
+anyhow = "1.0"
+thiserror = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.40", features = ["full", "tracing"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
+uuid = { version = "1.10", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# Borrowed from meetily: cpal for cross-platform audio
+cpal = "0.15"
+
+# Database: sqlx + rusqlite (FTS5)
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite", "chrono", "uuid", "macros", "migrate"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+# Tauri 2.x
+tauri = { version = "2.3", features = ["protocol-asset"] }
+tauri-build = { version = "2.3", features = [] }
+tauri-plugin-fs = "2.4"
+tauri-plugin-notification = "2.3"
+tauri-plugin-store = "2.4"
+tauri-plugin-dialog = "2.4"
+
+# MCP server (rmcp = official Rust MCP SDK)
+rmcp = { version = "0.2", features = ["server", "macros", "transport-stdio"] }
+
+# Async trait
+async-trait = "0.1"
+
+# HTTP client for Ollama / external providers
+reqwest = { version = "0.12", features = ["json", "stream"] }
+
+# CLI
+clap = { version = "4.5", features = ["derive"] }
+
+# llama-helper deps (copied from meetily)
+# Pinned to 0.1.152 to match our local patch.
+llama-cpp-2 = { version = "=0.1.152", features = ["metal", "cuda"] }
+encoding_rs = "0.8"
+
+# Patches borrowed from meetily — needed for Windows ARM64 MSVC build.
+# Without this, llama-cpp-sys-2 fails to compile with "MSVC is not supported for ARM, use clang".
+[patch.crates-io]
+llama-cpp-sys-2 = { path = "patches/llama-cpp-sys-2-0.1.152" }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+opt-level = "s"  # smaller binary, faster load
