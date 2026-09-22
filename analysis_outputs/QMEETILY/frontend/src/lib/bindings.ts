@@ -35,7 +35,15 @@ export type AppInfo = {
   name: string;
   version: string;
   is_recording: boolean;
-} & Partial<SidecarHealth>;
+  sidecar_running: boolean;
+  asr_ready: boolean;
+  llm_ready: boolean;
+};
+
+export type AsrSidecarStatus = {
+  url: string;
+  running: boolean;
+};
 
 export type Meeting = {
   id: number;
@@ -96,6 +104,7 @@ export type ModelDef = {
 export const commands = {
   ping:        () => invoke<string>('ping'),
   getAppInfo:  () => invoke<AppInfo>('get_app_info'),
+  getAsrSidecarStatus: () => invoke<AsrSidecarStatus>('get_asr_sidecar_status'),
   startRecording:  (args: { title: string }) => invoke<number>('start_recording', args),
   stopRecording:   (args: { meetingId: number }) => invoke<void>('stop_recording', args),
   listMeetings:    (args: { limit: number; offset: number }) => invoke<Meeting[]>('list_meetings', args),
