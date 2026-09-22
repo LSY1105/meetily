@@ -1,0 +1,89 @@
+# QMeetily weekly scope-drift check.
+#
+# This file is a deployable spec for the parent meetily repo's workflow
+# directory. QMeetily itself is a sub-directory of the meetily repo, but
+# GitHub Actions only picks up workflows from the repo root — so this file
+# lives at QMeetily's .github/workflows/ as documentation + review target.
+#
+# To enable: copy or symlink this file to the parent repo's .github/workflows/:
+#
+#   cp analysis_outputs/QMEETILY/.github/workflows/sync-check.yml \
+#      .github/workflows/qmeetily-sync-check.yml
+#   git add .github/workflows/qmeetily-sync-check.yml
+#   git commit -m "ci: enable QMeetily scope-drift check"
+#
+# Stage 0.3 (#0.3) does the same thing for qmeetily-ci.yml. We do not yet
+# have a parent-repo workflow runner for QMeetily; until then this file is
+# the canonical spec and `scripts/sync-check.sh` is the local equivalent.
+
+name: QMeetily scope-drift check
+
+on:
+  # Weekly Monday 09:00 UTC = 17:00 Asia/Shanghai.
+  schedule:
+    - cron: '0 9 * * 1'
+  # Run on any push to devtest or any qmeetily/* branch.
+  push:
+    branches:
+      - devtest
+      - 'qmeetily/**'
+  pull_request:
+    branches:
+      - devtest
+      - 'qmeetily/**'
+  # Allow manual trigger from the Actions tab.
+  workflow_dispatch:
+
+defaults:
+  run:
+    # Always run from the parent repo root — GitHub checks out the whole repo,
+    # not just the QMeetily sub-directory.
+    working-directory: ${{ github.workspace }}
+
+jobs:
+  scope-drift:
+    name: Detect QMeetily out-of-scope dirty
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # We need the parent repo's working tree to run sync-check.sh.
+          # fetch-depth: 0 so `git status` sees the full index.
+          fetch-depth: 0
+
+      - name: Check out fork/devtest for diff comparison
+        run: |
+          git remote add fork https://github.com/LSY1105/meetily.git || true
+          git fetch fork devtest || echo "fork/devtest fetch skipped"
+
+      - name: Run sync-check.sh (strict mode)
+        run: |
+          chmod +x analysis_outputs/QMEETILY/scripts/sync-check.sh
+          bash analysis_outputs/QMEETILY/scripts/sync-check.sh --strict || EXIT=$? || true
+          if [ "${EXIT:-0}" -ne 0 ]; then
+            echo "::error::sync-check failed with exit $EXIT"
+            exit "$EXIT"
+          fi
+
+      - name: Report scope stats to GitHub Actions summary
+        if: always()
+        run: |
+          {
+            echo "## QMeetily scope-drift report"
+            echo ""
+            echo "- repo: ${{ github.repository }}"
+            echo "- branch: ${{ github.ref }}"
+            echo "- event: ${{ github.event_name }}"
+            echo ""
+            echo "### Out-of-scope dirty files"
+            echo ""
+            echo '```'
+            git status --porcelain | grep -v "^... analysis_outputs/QMEETILY/" | head -50 || echo "(none)"
+            echo '```'
+            echo ""
+            echo "### In-scope dirty files (QMeetily)"
+            echo ""
+            echo '```'
+            git status --porcelain -- analysis_outputs/QMEETILY/ | head -50 || echo "(none)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
