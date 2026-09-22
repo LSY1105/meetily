@@ -1,0 +1,124 @@
+# QMeetily CI pipeline
+#
+# NOTE: This file lives under QMEETILY/.github/workflows/. GitHub Actions
+# only resolves workflows from the repository root. Until QMeetily is split
+# into its own repository (tracked separately), this file is a placeholder
+# that documents the desired pipeline. The actual root workflow should be
+# added at ../../../.github/workflows/qmeetily-ci.yml (parent repo stub)
+# or this file should be moved when QMeetily becomes a standalone repo.
+#
+# Stage 0.1 — bootstrap skeleton. Real gates land in subsequent PRs.
+
+name: QMeetily CI
+
+on:
+  push:
+    branches:
+      - devtest
+      - 'qmeetily/**'
+  pull_request:
+    branches:
+      - devtest
+      - 'qmeetily/**'
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  # ───────────────────── Rust ─────────────────────
+  rust-check:
+    name: Rust check (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: analysis_outputs/QMEETILY
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry & target
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: analysis_outputs/QMEETILY -> target
+
+      - name: Format check
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test --workspace --all-features
+
+  # ───────────────────── Frontend ─────────────────────
+  frontend-check:
+    name: Frontend check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: analysis_outputs/QMEETILY/frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm exec tsc --noEmit
+
+      - name: Build
+        run: pnpm build
+
+  # ───────────────────── Tauri build ─────────────────────
+  tauri-build:
+    name: Tauri build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: analysis_outputs/QMEETILY
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: analysis_outputs/QMEETILY -> target
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build frontend
+        run: pnpm --dir frontend install --frozen-lockfile && pnpm --dir frontend build
+
+      - name: Build Tauri (no bundle)
+        run: cargo tauri build --no-bundle
+
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: qmeetily-${{ matrix.os }}
+          path: analysis_outputs/QMEETILY/target/release/qmeetily*
