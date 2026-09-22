@@ -2,8 +2,15 @@
 //!
 //! Borrowed from meetily's schema, simplified. Adds `decisions` table for
 //! structured deal/decision/action extraction.
+//!
+//! Note: full-text search used to be backed by an FTS5 virtual table
+//! (`transcripts_fts`) that v0.1 never wired up — db/transcripts::search
+//! uses LIKE instead. We drop the table up front so any user who already
+//! ran an earlier build cleans up automatically on next launch.
 
 pub const SCHEMA_SQL: &str = r#"
+DROP TABLE IF EXISTS transcripts_fts;
+
 CREATE TABLE IF NOT EXISTS meetings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
@@ -64,14 +71,4 @@ CREATE TABLE IF NOT EXISTS summaries (
     created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_summaries_meeting ON summaries(meeting_id);
-"#;
-
-pub const FTS_SQL: &str = r#"
-CREATE VIRTUAL TABLE IF NOT EXISTS transcripts_fts USING fts5(
-    text,
-    rewritten_text,
-    content='transcripts',
-    content_rowid='id',
-    tokenize="unicode61 remove_diacritics 2"
-);
 "#;

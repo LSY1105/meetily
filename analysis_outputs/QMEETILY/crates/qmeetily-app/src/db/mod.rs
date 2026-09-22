@@ -1,8 +1,11 @@
-//! Database — SQLite + sqlx + FTS5 + sqlite-vec.
+//! Database — SQLite + sqlx.
 //!
-//! Borrowed patterns from meetily, simplified: one .db file, one schema.
-//! Borrowed from meetily: `transcripts_fts` virtual table for search,
+//! Borrowed patterns from meetily, simplified: one .db file, one schema,
 //! schema for meetings / transcripts / decisions.
+//!
+//! Full-text search in v0.1 is implemented with simple `LIKE` against
+//! `text` / `rewritten_text` in `db/transcripts`. A future revision can
+//! re-introduce FTS5 with proper INSERT/UPDATE/DELETE triggers.
 
 pub mod schema;
 pub mod meetings;
@@ -41,7 +44,6 @@ impl Db {
             path,
             OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE,
         )?;
-        raw.execute_batch(schema::FTS_SQL)?;
 
         Ok(Self {
             pool,
