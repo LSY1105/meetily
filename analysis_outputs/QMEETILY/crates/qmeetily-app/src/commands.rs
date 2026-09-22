@@ -21,6 +21,9 @@ pub struct AppInfo {
     pub name: &'static str,
     pub version: &'static str,
     pub is_recording: bool,
+    pub sidecar_running: bool,
+    pub asr_ready: bool,
+    pub llm_ready: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -34,10 +37,25 @@ pub async fn ping() -> &'static str { "pong" }
 
 #[tauri::command]
 pub async fn get_app_info(state: State<'_, AppState>) -> Result<AppInfo> {
+    let sidecar_running = state.asr_sidecar().map(|s| s.is_running()).unwrap_or(false);
+    // In v0.1 the ASR pipeline IS the Python sidecar, so readiness tracks
+    // the sidecar process. A future revision that adds a separate Rust
+    // frontend can split this without changing the field shape.
+    let asr_ready = sidecar_running;
+    let llm_ready = match crate::summary_engine::models::get_model_path(
+        &state.config().data_dir,
+        &state.config().preferred_llm_model,
+    ) {
+        Ok(p) => p.exists(),
+        Err(_) => false,
+    };
     Ok(AppInfo {
         name: "QMeetily",
         version: env!("CARGO_PKG_VERSION"),
         is_recording: state.is_recording(),
+        sidecar_running,
+        asr_ready,
+        llm_ready,
     })
 }
 
