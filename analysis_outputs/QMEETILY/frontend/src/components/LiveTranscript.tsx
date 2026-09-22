@@ -157,7 +157,9 @@ export function LiveTranscript({ currentMeetingId, onMeetingStart, onMeetingEnd 
         >
           {segments.length === 0 && (
             <div className="text-muted-foreground text-center py-12">
-              {isRecording ? "🎧 Listening..." : "Start a recording to see transcript"}
+             {isRecording
+               ? "🎧 Recording… (v0.1: transcripts appear after the meeting ends)"
+               : "Start a recording to see the transcript"}
             </div>
           )}
 
@@ -208,8 +210,8 @@ export function LiveTranscript({ currentMeetingId, onMeetingStart, onMeetingEnd 
         <div className="space-y-2 max-h-[600px] overflow-y-auto">
           {decisions.length === 0 && isRecording && (
             <div className="text-xs text-muted-foreground p-3 border border-dashed rounded">
-              Decisions, actions, and risks will appear here as Qwen3-Instruct
-              detects them.
+             Live decision / action / risk extraction ships in v0.2.
+             In v0.1, the summary is generated after the meeting ends.
             </div>
           )}
 
