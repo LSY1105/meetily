@@ -23,6 +23,12 @@ pub struct AppInfo {
     pub is_recording: bool,
 }
 
+#[derive(Debug, Serialize)]
+pub struct AsrSidecarStatus {
+    pub url: String,
+    pub running: bool,
+}
+
 #[tauri::command]
 pub async fn ping() -> &'static str { "pong" }
 
@@ -32,6 +38,17 @@ pub async fn get_app_info(state: State<'_, AppState>) -> Result<AppInfo> {
         name: "QMeetily",
         version: env!("CARGO_PKG_VERSION"),
         is_recording: state.is_recording(),
+    })
+}
+
+#[tauri::command]
+pub async fn get_asr_sidecar_status(state: State<'_, AppState>) -> Result<AsrSidecarStatus> {
+    let Some(sidecar) = state.asr_sidecar() else {
+        return Ok(AsrSidecarStatus { url: String::new(), running: false });
+    };
+    Ok(AsrSidecarStatus {
+        url: sidecar.url().to_string(),
+        running: sidecar.is_running(),
     })
 }
 
