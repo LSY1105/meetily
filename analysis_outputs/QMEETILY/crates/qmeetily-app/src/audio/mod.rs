@@ -12,7 +12,9 @@
 pub mod capture;
 pub mod mixer;
 pub mod vad;
+pub mod wav;
 
 pub use capture::{AudioCapture, CaptureConfig, CaptureError};
 pub use mixer::{AudioMixer, MixedFrame};
 pub use vad::{VadEvent, VadProcessor};
+pub use wav::WavWriter;

@@ -8,6 +8,7 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 
 use crate::asr::{AsrClient, AsrSidecar};
+use crate::audio::AudioCapture;
 use crate::db::Db;
 use crate::error::Result;
 
@@ -17,6 +18,8 @@ pub struct AppState {
     config: RwLock<AppConfig>,
     asr: RwLock<Option<Arc<AsrClient>>>,
     asr_sidecar: Option<Arc<AsrSidecar>>,
+    audio_capture: parking_lot::Mutex<Option<AudioCapture>>,
+    audio_worker: parking_lot::Mutex<Option<tauri::async_runtime::JoinHandle<()>>>,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -86,6 +89,8 @@ impl AppState {
             config: RwLock::new(config),
             asr: RwLock::new(None),
             asr_sidecar: Some(sidecar),
+            audio_capture: parking_lot::Mutex::new(None),
+            audio_worker: parking_lot::Mutex::new(None),
         })
     }
 
@@ -100,6 +105,8 @@ impl AppState {
             config: RwLock::new(config),
             asr: RwLock::new(None),
             asr_sidecar: None,
+            audio_capture: parking_lot::Mutex::new(None),
+            audio_worker: parking_lot::Mutex::new(None),
         })
     }
 
@@ -155,6 +162,22 @@ impl AppState {
 
     pub fn asr_sidecar(&self) -> Option<&Arc<AsrSidecar>> {
         self.asr_sidecar.as_ref()
+    }
+
+    pub fn set_audio_capture(&self, cap: Option<AudioCapture>) {
+        *self.audio_capture.lock() = cap;
+    }
+
+    pub fn take_audio_capture(&self) -> Option<AudioCapture> {
+        self.audio_capture.lock().take()
+    }
+
+    pub fn set_audio_worker(&self, h: Option<tauri::async_runtime::JoinHandle<()>>) {
+        *self.audio_worker.lock() = h;
+    }
+
+    pub fn take_audio_worker(&self) -> Option<tauri::async_runtime::JoinHandle<()>> {
+        self.audio_worker.lock().take()
     }
 }
 

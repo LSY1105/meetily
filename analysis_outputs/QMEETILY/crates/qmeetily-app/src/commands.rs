@@ -10,6 +10,7 @@ use std::sync::Arc;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
 
+use crate::audio::{AudioCapture, CaptureConfig, WavWriter};
 use crate::db::meetings::Meeting;
 use crate::db::transcripts::{NewTranscript, Transcript};
 use crate::state::{AppState, RecordingState};
@@ -109,6 +110,36 @@ pub async fn start_recording(
         }
     }
 
+    // Audio capture: open cpal stream, spawn a worker that drains the
+    // crossbeam channel and writes samples to <data_dir>/recordings/<id>.wav.
+    // On stop, the cpal Stream is dropped (audio halts) and the worker
+    // exits when its receiver closes; finalize() patches the WAV header.
+    let recordings_dir = state.config().data_dir.join("recordings");
+    std::fs::create_dir_all(&recordings_dir)?;
+    let audio_path = recordings_dir.join(format!("{meeting_id}.wav"));
+    let audio_path_for_worker = audio_path.clone();
+
+    let cap = tauri::async_runtime::spawn_blocking(move || {
+        AudioCapture::microphone(CaptureConfig::default())
+    })
+    .await
+    .map_err(|e| crate::error::AppError::Other(format!("audio capture join: {e}")))?
+    .map_err(|e| crate::error::AppError::Other(format!("audio capture open: {e}")))?;
+
+    let sample_rate = cap.sample_rate();
+    let rx = cap.receiver.clone();
+
+    let worker = tauri::async_runtime::spawn_blocking(move || -> std::io::Result<()> {
+        let mut w = WavWriter::create(&audio_path_for_worker, sample_rate, 1)?;
+        while let Ok(chunk) = rx.recv() {
+            w.write_samples(&chunk)?;
+        }
+        w.finalize()
+    });
+
+    state.set_audio_capture(Some(cap));
+    state.set_audio_worker(Some(worker));
+
     let _ = app.emit("recording-started", meeting_id);
     Ok(meeting_id)
 }
@@ -122,6 +153,31 @@ pub async fn stop_recording(
     use chrono::Utc;
     state.set_recording(RecordingState::Stopping)?;
     state.db().end_meeting(meeting_id, Utc::now()).await?;
+
+    // Halt audio capture by dropping the cpal Stream; the worker then
+    // exits naturally because the crossbeam channel closes.
+    let cap = state.take_audio_capture();
+    drop(cap);
+    if let Some(handle) = state.take_audio_worker() {
+        let _ = handle.await;
+    }
+
+    // Persist the recorded audio path on the meeting row so the Library
+    // view and ASR re-transcription can find it later.
+    let audio_path = state
+        .config()
+        .data_dir
+        .join("recordings")
+        .join(format!("{meeting_id}.wav"));
+    if audio_path.exists() {
+        let path_str = audio_path.to_string_lossy().into_owned();
+        sqlx::query("UPDATE meetings SET audio_path = ? WHERE id = ?")
+            .bind(&path_str)
+            .bind(meeting_id)
+            .execute(state.db().pool())
+            .await?;
+    }
+
     state.set_recording(RecordingState::Idle)?;
     state.clear_asr();
     let _ = app.emit("recording-stopped", meeting_id);

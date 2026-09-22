@@ -97,6 +97,7 @@ impl Default for CaptureConfig {
 pub struct AudioCapture {
     _stream: Stream,
     pub receiver: Receiver<Vec<f32>>,
+    sample_rate: u32,
 }
 
 impl AudioCapture {
@@ -219,7 +220,15 @@ impl AudioCapture {
         Ok(Self {
             _stream: stream,
             receiver: rx,
+            sample_rate: config.sample_rate,
         })
+    }
+
+    /// Sample rate the underlying stream was opened at (always the device's
+    /// native rate after `from_device`'s adaptation). Recorded samples come
+    /// out at this rate; downstream code is resampling needed for 16 kHz ASR.
+    pub fn sample_rate(&self) -> u32 {
+        self.sample_rate
     }
 }
 
