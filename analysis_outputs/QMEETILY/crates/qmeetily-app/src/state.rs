@@ -3,10 +3,11 @@
 //! No globals, no static AtomicBool, no LazyLock<Mutex>.
 
 use std::sync::Arc;
+use std::time::Duration;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 
-use crate::asr::AsrClient;
+use crate::asr::{AsrClient, AsrSidecar};
 use crate::db::Db;
 use crate::error::Result;
 
@@ -15,6 +16,7 @@ pub struct AppState {
     db: Arc<Db>,
     config: RwLock<AppConfig>,
     asr: RwLock<Option<Arc<AsrClient>>>,
+    asr_sidecar: Option<Arc<AsrSidecar>>,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -62,11 +64,28 @@ impl AppState {
         let db = Arc::new(Db::open(&config.data_dir.join("qmeetily.db")).await?);
         let _ = app;
 
+        // Spawn the ASR Python sidecar and wait for it to answer /health
+        // before letting the app finish initialising. If it fails to start
+        // or never becomes ready we propagate the error so the user sees
+        // a startup failure instead of a silently-broken recording flow.
+        let sidecar = AsrSidecar::start().and_then(|s| {
+            // wait_ready is async; we have to drive it from a blocking
+            // context. The future is cheap (HTTP GET + sleep loop) so
+            // tauri::async_runtime::block_on is fine here.
+            let s_for_block = s.clone();
+            let ready = tauri::async_runtime::block_on(async move {
+                s_for_block.wait_ready(Duration::from_secs(60)).await
+            });
+            ready.map(|_| s)
+        })?;
+        tracing::info!("ASR sidecar ready at {}", sidecar.url());
+
         Ok(Self {
             recording: RwLock::new(RecordingState::Idle),
             db,
             config: RwLock::new(config),
             asr: RwLock::new(None),
+            asr_sidecar: Some(sidecar),
         })
     }
 
@@ -80,6 +99,7 @@ impl AppState {
             db,
             config: RwLock::new(config),
             asr: RwLock::new(None),
+            asr_sidecar: None,
         })
     }
 
@@ -131,6 +151,10 @@ impl AppState {
 
     pub fn clear_asr(&self) {
         *self.asr.write() = None;
+    }
+
+    pub fn asr_sidecar(&self) -> Option<&Arc<AsrSidecar>> {
+        self.asr_sidecar.as_ref()
     }
 }
 

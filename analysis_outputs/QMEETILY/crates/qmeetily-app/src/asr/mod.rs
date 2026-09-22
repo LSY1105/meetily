@@ -3,13 +3,15 @@
 //! Talks to the Python `qmeetily-sidecar-asr` subprocess over HTTP.
 //! Wire-compatible with OpenAI's `/v1/audio/transcriptions`.
 //!
-//! Lifecycle is owned by `commands::start_recording` / `stop_recording`.
-//! We do NOT spawn the sidecar in this crate — that's the Tauri command's job,
-//! so the binary can be reused between sessions without restart.
+//! The sidecar process is spawned by `AsrSidecar::start` during app
+//! startup and reused across sessions; the HTTP client built here just
+//! dials whatever URL the lifecycle manager exposes.
 
 pub mod client;
+pub mod sidecar;
 
 pub use client::{AsrClient, TranscribeChunk, TranscribeResult};
+pub use sidecar::AsrSidecar;
 
 use crate::error::Result;
 

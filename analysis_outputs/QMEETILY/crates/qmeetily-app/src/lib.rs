@@ -52,6 +52,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::ping,
             commands::get_app_info,
+            commands::get_asr_sidecar_status,
             commands::start_recording,
             commands::stop_recording,
             commands::list_meetings,
