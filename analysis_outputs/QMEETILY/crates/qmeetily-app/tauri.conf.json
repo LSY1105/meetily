@@ -6,8 +6,8 @@
     "build": {
         "frontendDist": "../../frontend/out",
         "devUrl": "http://localhost:3118",
-        "beforeDevCommand": "pnpm --dir C:/Users/qjl10/Documents/工作区/meetily/analysis_outputs/QMEETILY/frontend dev",
-        "beforeBuildCommand": "pnpm --dir C:/Users/qjl10/Documents/工作区/meetily/analysis_outputs/QMEETILY/frontend build"
+        "beforeDevCommand": "pnpm --dir ../../frontend dev",
+        "beforeBuildCommand": "pnpm --dir ../../frontend build"
     },
     "app": {
         "windows": [
