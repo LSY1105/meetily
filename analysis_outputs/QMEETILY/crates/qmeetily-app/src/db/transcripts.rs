@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use super::Db;
 use crate::error::Result;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct Transcript {
     pub id: i64,
     pub meeting_id: i64,
@@ -106,7 +106,7 @@ impl Db {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct TranscriptSearchHit {
     pub transcript_id: i64,
     pub meeting_id: i64,

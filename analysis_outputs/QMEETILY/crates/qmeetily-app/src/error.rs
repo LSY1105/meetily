@@ -71,3 +71,15 @@ impl serde::Serialize for AppError {
         serializer.serialize_str(&self.to_string())
     }
 }
+
+// tauri-specta needs errors to satisfy `specta::Type` so that
+// `Result<T, AppError>` returned from `#[tauri::command]` can be walked by
+// `FunctionResult<FunctionFutureMarker>`. Render as a plain string to mirror
+// the `serde::Serialize` impl above -- the frontend will see a `string` error
+// and never an AppError symbol.
+impl specta::Type for AppError {
+    fn definition(_: &mut specta::Types) -> specta::datatype::DataType {
+        specta::datatype::DataType::Primitive(specta::datatype::Primitive::str)
+    }
+}
+
