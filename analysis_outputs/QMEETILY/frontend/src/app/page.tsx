@@ -43,10 +43,8 @@ export default function HomePage() {
     };
   }, []);
 
-  const startRecording = async () => {
-    const title = window.prompt("Meeting title", "Untitled meeting");
-    if (!title?.trim()) return;
-
+  const startRecording = async (title: string) => {
+    if (!title.trim()) return;
     try {
       const id = await invoke<number>("start_recording", { title });
       setCurrentMeetingId(id);

@@ -2,6 +2,7 @@
 
 import { Mic, Square, Home, Settings, FileText, NotebookPen } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Input } from "@/components/ui/input";
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
 import { SidecarStatus } from "@/components/SidecarStatus";
@@ -17,7 +18,7 @@ interface SidebarProps {
   onSelectView: (view: "home" | "library" | "settings") => void;
   isRecording: boolean;
   currentMeetingTitle: string | null;
-  onStartRecording: () => void;
+  onStartRecording: (title: string) => void;
   onStopRecording: () => void;
   appInfo: AppInfo | null;
 }
@@ -41,6 +42,8 @@ export function Sidebar({
   appInfo,
 }: SidebarProps) {
   const [recent, setRecent] = useState<MeetingSummary[]>([]);
+  const [titleDraft, setTitleDraft] = useState("");
+
 
   // Load recent meetings on mount
   useEffect(() => {
@@ -64,12 +67,21 @@ export function Sidebar({
 
       {/* Primary actions */}
       <div className="p-3 border-b">
+        {!isRecording && (
+          <Input
+            placeholder="Meeting title"
+            value={titleDraft}
+            onChange={(e) => setTitleDraft(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && titleDraft.trim() && onStartRecording(titleDraft.trim())}
+            className="mb-2 h-8 text-xs"
+          />
+        )}
         <Tooltip>
           <TooltipTrigger asChild>
             <button
-              onClick={isRecording ? onStopRecording : onStartRecording}
-              disabled={false}
-              className={`w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-full text-white text-sm font-medium transition-colors ${
+              onClick={isRecording ? onStopRecording : () => { if (titleDraft.trim()) { onStartRecording(titleDraft.trim()); setTitleDraft(""); } }}
+              disabled={!isRecording && !titleDraft.trim()}
+              className={`w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-full text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                 isRecording
                   ? "bg-recording hover:bg-recording/90 animate-pulse"
                   : "bg-recording hover:bg-recording/90"
