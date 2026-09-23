@@ -15,7 +15,7 @@ export function SidecarStatus({ info }: { info: AppInfo | null }) {
   if (!info) {
     return (
       <Badge variant="outline" className="gap-1">
-        <span className="w-2 h-2 rounded-full bg-gray-400" />
+        <span className="w-2 h-2 rounded-full bg-muted-foreground" />
         Initializing
       </Badge>
     );
@@ -24,7 +24,7 @@ export function SidecarStatus({ info }: { info: AppInfo | null }) {
   if (!info.sidecar_running) {
     return (
       <Badge variant="outline" className="gap-1 text-muted-foreground">
-        <span className="w-2 h-2 rounded-full bg-gray-400 animate-pulse" />
+        <span className="w-2 h-2 rounded-full bg-muted-foreground animate-pulse" />
         Sidecar starting...
       </Badge>
     );
@@ -34,12 +34,12 @@ export function SidecarStatus({ info }: { info: AppInfo | null }) {
   return (
     <div className="flex items-center gap-2">
       <Badge variant={allReady ? "default" : "secondary"} className="gap-1">
-        <span className={`w-2 h-2 rounded-full ${allReady ? "bg-green-500" : "bg-yellow-500"}`} />
+        <span className={`w-2 h-2 rounded-full ${allReady ? "bg-success" : "bg-warning"}`} />
         {allReady ? "Ready" : "Loading models"}
       </Badge>
       {info.is_recording && (
         <Badge variant="destructive" className="gap-1">
-          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+          <span className="w-2 h-2 rounded-full bg-recording animate-pulse" />
           Recording
         </Badge>
       )}

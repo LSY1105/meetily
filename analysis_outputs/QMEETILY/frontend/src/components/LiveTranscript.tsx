@@ -37,11 +37,11 @@ interface LiveTranscriptProps {
 }
 
 const DECISION_BADGES: Record<Decision['type'], { icon: string; color: string; label: string }> = {
-  deal:     { icon: '💰', color: 'border-l-green-500 bg-green-50/50',  label: 'Deal' },
-  decision: { icon: '⚖️', color: 'border-l-purple-500 bg-purple-50/50', label: 'Decision' },
-  action:   { icon: '✅', color: 'border-l-blue-500 bg-blue-50/50',    label: 'Action' },
-  question: { icon: '❓', color: 'border-l-yellow-500 bg-yellow-50/50', label: 'Question' },
-  risk:     { icon: '⚠️', color: 'border-l-red-500 bg-red-50/50',       label: 'Risk' },
+  deal:     { icon: '💰', color: 'border-l-success bg-success-soft/50',    label: 'Deal' },
+  decision: { icon: '⚖️', color: 'border-l-info bg-info-soft/50',          label: 'Decision' },
+  action:   { icon: '✅', color: 'border-l-info bg-info-soft/50',          label: 'Action' },
+  question: { icon: '❓', color: 'border-l-warning bg-warning-soft/50',    label: 'Question' },
+  risk:     { icon: '⚠️', color: 'border-l-destructive bg-destructive-soft/50', label: 'Risk' },
 };
 
 export function LiveTranscript({ currentMeetingId, onMeetingStart, onMeetingEnd }: LiveTranscriptProps) {
@@ -141,9 +141,9 @@ export function LiveTranscript({ currentMeetingId, onMeetingStart, onMeetingEnd 
           </div>
         ) : (
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-red-50 border border-red-200 rounded-md">
-              <span className="inline-block w-3 h-3 rounded-full bg-red-500 animate-pulse" />
-              <span className="font-medium text-red-700">Recording</span>
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-recording-soft border border-recording-border rounded-md">
+              <span className="inline-block w-3 h-3 rounded-full bg-recording animate-pulse" />
+              <span className="font-medium text-recording-fg">Recording</span>
             </div>
             <Button variant="destructive" onClick={stopRecording}>
               Stop & Summarize

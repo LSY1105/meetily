@@ -71,8 +71,8 @@ export function Sidebar({
               disabled={false}
               className={`w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-full text-white text-sm font-medium transition-colors ${
                 isRecording
-                  ? "bg-red-500 hover:bg-red-600 animate-pulse"
-                  : "bg-red-500 hover:bg-red-600"
+                  ? "bg-recording hover:bg-recording/90 animate-pulse"
+                  : "bg-recording hover:bg-recording/90"
               }`}
             >
               {isRecording ? <Square className="w-4 h-4 fill-current" /> : <Mic className="w-4 h-4" />}
@@ -84,10 +84,10 @@ export function Sidebar({
           </TooltipContent>
         </Tooltip>
         {isRecording && currentMeetingTitle && (
-          <div className="mt-2 px-2 py-1.5 bg-red-50 border border-red-200 rounded text-xs">
+          <div className="mt-2 px-2 py-1.5 bg-recording-soft border border-recording-border rounded text-xs">
             <div className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-              <span className="truncate font-medium text-red-700">{currentMeetingTitle}</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-recording animate-pulse" />
+              <span className="truncate font-medium text-recording-fg">{currentMeetingTitle}</span>
             </div>
           </div>
         )}
