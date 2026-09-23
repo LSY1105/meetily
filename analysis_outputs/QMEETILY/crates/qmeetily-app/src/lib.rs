@@ -18,6 +18,7 @@ pub use error::{AppError, Result};
 pub use state::AppState;
 
 use tauri::Manager;
+use tauri_specta::{collect_commands, Builder};
 use tracing::info;
 
 pub fn run() {
@@ -32,6 +33,39 @@ pub fn run() {
         .init();
 
     info!("QMeetily starting");
+
+    // Collect every `#[tauri::command]` + `#[specta::specta]` so the same
+    // list drives both Tauri's invoke handler (runtime dispatch) and the
+    // generated TypeScript bindings (`frontend/src/lib/bindings.ts`).
+    // This replaces the previous hand-maintained list under
+    // `tauri::generate_handler!` so the two can never get out of sync.
+    let specta = Builder::<tauri::Wry>::new().dangerously_cast_bigints_to_number().commands(collect_commands![
+        commands::ping,
+        commands::get_app_info,
+        commands::get_asr_sidecar_status,
+        commands::start_recording,
+        commands::stop_recording,
+        commands::list_meetings,
+        commands::get_meeting,
+        commands::search_meetings,
+        commands::get_transcript,
+        commands::generate_summary,
+        commands::get_available_models,
+    ]);
+
+    // Regenerate the frontend bindings on every dev build. Release builds
+    // skip this so a stray stale file can't break a tagged release — the
+    // last debug build's output is always checked in alongside the source.
+    #[cfg(debug_assertions)]
+    specta
+        .export(
+            specta_typescript::Typescript::default(),
+            format!(
+                "{}/../../frontend/src/lib/bindings.ts",
+                env!("CARGO_MANIFEST_DIR")
+            ),
+        )
+        .expect("failed to export TypeScript bindings");
 
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
@@ -49,19 +83,7 @@ pub fn run() {
             info!("QMeetily ready");
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![
-            commands::ping,
-            commands::get_app_info,
-            commands::get_asr_sidecar_status,
-            commands::start_recording,
-            commands::stop_recording,
-            commands::list_meetings,
-            commands::get_meeting,
-            commands::search_meetings,
-            commands::get_transcript,
-            commands::generate_summary,
-            commands::get_available_models,
-        ])
+        .invoke_handler(specta.invoke_handler())
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use super::Db;
 use crate::error::Result;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct Meeting {
     pub id: i64,
     pub title: String,
@@ -15,7 +15,7 @@ pub struct Meeting {
     pub participants: Vec<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct NewMeeting {
     pub title: String,
     pub started_at: DateTime<Utc>,

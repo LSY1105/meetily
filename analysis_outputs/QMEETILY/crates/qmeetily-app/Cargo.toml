@@ -28,6 +28,9 @@ chrono.workspace = true
 uuid.workspace = true
 
 cpal.workspace = true
+tauri-specta.workspace = true
+specta.workspace = true
+specta-typescript.workspace = true
 rubato.workspace = true
 sqlx.workspace = true
 rusqlite.workspace = true
@@ -60,4 +63,5 @@ name = "audio_smoke_test"
 
 [[example]]
 name = "asr_smoke_test"
+
 

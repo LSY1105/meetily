@@ -18,7 +18,7 @@ use crate::state::{AppState, RecordingState};
 use crate::error::{AppError, Result};
 use crate::summary_engine::models::ModelDef;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, specta::Type)]
 pub struct AppInfo {
     pub name: &'static str,
     pub version: &'static str,
@@ -28,16 +28,18 @@ pub struct AppInfo {
     pub llm_ready: bool,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, specta::Type)]
 pub struct AsrSidecarStatus {
     pub url: String,
     pub running: bool,
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn ping() -> &'static str { "pong" }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_app_info(state: State<'_, AppState>) -> Result<AppInfo> {
     let sidecar_running = state.asr_sidecar().map(|s| s.is_running()).unwrap_or(false);
     // In v0.1 the ASR pipeline IS the Python sidecar, so readiness tracks
@@ -62,6 +64,7 @@ pub async fn get_app_info(state: State<'_, AppState>) -> Result<AppInfo> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_asr_sidecar_status(state: State<'_, AppState>) -> Result<AsrSidecarStatus> {
     let Some(sidecar) = state.asr_sidecar() else {
         return Ok(AsrSidecarStatus { url: String::new(), running: false });
@@ -73,6 +76,7 @@ pub async fn get_asr_sidecar_status(state: State<'_, AppState>) -> Result<AsrSid
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn start_recording(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -137,6 +141,7 @@ pub async fn start_recording(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn stop_recording(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -178,6 +183,7 @@ pub async fn stop_recording(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_meetings(
     state: State<'_, AppState>,
     limit: u32,
@@ -187,16 +193,19 @@ pub async fn list_meetings(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_meeting(state: State<'_, AppState>, id: i64) -> Result<Option<Meeting>> {
     state.db().get_meeting(id).await
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_transcript(state: State<'_, AppState>, meeting_id: i64) -> Result<Vec<Transcript>> {
     state.db().get_meeting_transcripts(meeting_id).await
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn search_meetings(
     state: State<'_, AppState>,
     query: String,
@@ -206,11 +215,13 @@ pub async fn search_meetings(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_available_models() -> Result<Vec<ModelDef>> {
     Ok(crate::summary_engine::get_available_models())
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn generate_summary(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -255,3 +266,6 @@ pub async fn generate_summary(
     let _ = app.emit("summary-ready", summary.clone());
     Ok(summary)
 }
+
+
+

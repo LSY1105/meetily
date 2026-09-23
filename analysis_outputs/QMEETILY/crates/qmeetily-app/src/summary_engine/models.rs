@@ -10,7 +10,7 @@ use std::path::PathBuf;
 // ============================================================================
 
 /// Sampling parameters supported by the built-in AI -> llama-helper pipeline.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
 pub struct SamplingParams {
     /// Temperature - 0.0 triggers greedy decoding in llama-helper.
     pub temperature: f32,
@@ -124,7 +124,7 @@ impl SamplingParams {
 }
 
 /// Definition of a built-in AI model with all metadata
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct ModelDef {
     /// Model name in format "family:variant" (e.g., "gemma3:1b")
     /// This is what's stored in database as model field when provider="builtin-ai"
