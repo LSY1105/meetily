@@ -37,7 +37,7 @@ The correct path is much simpler:
 | Dead code | audio/stt.rs (399 lines) | cleaned up |
 | Triple source-of-truth | IS_RECORDING + RECORDING_FLAG + RecordingState | single Arc<AppState> |
 
-## Status (2026-09-21)
+## Status (2026-09-23)
 
 | Component | Status |
 |---|---|
@@ -51,10 +51,13 @@ The correct path is much simpler:
 | **ASR pipeline** | ✅ **Qwen3-ASR-0.6B sidecar, HTTP 200 in 5.58s, language auto-detect** |
 | **TTS pipeline** | ✅ **Qwen3-TTS-0.6B-Base, 6.48s WAV output, voice clone works** |
 | DB schema (meetings/transcripts/decisions/summaries) | ✅ Defined |
-| Tauri commands (12 commands) | ✅ Skeleton |
+| Tauri commands (11 commands) | ✅ **auto-generated via `tauri-specta`** |
 | MCP server (4 tools) | ✅ stdlib impl (no rmcp) |
 | Unit tests | ✅ **16/16 passing** |
-| Streaming ASR + sidecar auto-launch | ⏳ Future (v0.2) |
+| Per-chunk ASR upload (5 s interval, populates transcripts) | ✅ **P0-3b** |
+| 16 kHz resample (cpal native rate → ASR via rubato SincFixedIn) | ✅ **P0-3c** |
+| TS bindings auto-generation (`tauri-specta` + `specta`) | ✅ **PR #1.5** |
+| Sidecar auto-launch (process spawn on app boot) | ⏳ Future (v0.2) |
 
 See `docs/LLM_VERIFICATION.md`, `docs/AUDIO_VERIFICATION.md`, `docs/TAURI_INTEGRATION_VERIFICATION.md`, `docs/FRONTEND_INTEGRATION.md`, `docs/ASR_PIPELINE.md`, and `docs/TTS_PIPELINE.md`.
 
