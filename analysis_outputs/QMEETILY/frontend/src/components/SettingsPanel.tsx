@@ -1,6 +1,7 @@
 "use client";
 
 import { Card } from "@/components/ui/card";
+import { CheckCircle2, PauseCircle, Loader2, CircleDot } from "lucide-react";
 import type { AppInfo } from "@/lib/bindings";
 
 
@@ -14,13 +15,13 @@ export function SettingsPanel({ info }: { info: AppInfo | null }) {
             <dt>Version</dt>
             <dd className="font-mono">{info.version}</dd>
             <dt>Recording</dt>
-            <dd>{info.is_recording ? "🔴 active" : "idle"}</dd>
+            <dd className="flex items-center gap-1.5">{info.is_recording ? <><CircleDot className="w-3.5 h-3.5 text-recording" /> active</> : "idle"}</dd>
             <dt>Sidecar</dt>
-            <dd>{info.sidecar_running ? "✅ running" : "⏸ stopped"}</dd>
+            <dd className="flex items-center gap-1.5">{info.sidecar_running ? <><CheckCircle2 className="w-3.5 h-3.5 text-success" /> running</> : <><PauseCircle className="w-3.5 h-3.5 text-muted-foreground" /> stopped</>}</dd>
             <dt>Qwen3-ASR</dt>
-            <dd>{info.asr_ready ? "✅ ready" : "⏳ not loaded"}</dd>
+            <dd className="flex items-center gap-1.5">{info.asr_ready ? <><CheckCircle2 className="w-3.5 h-3.5 text-success" /> ready</> : <><Loader2 className="w-3.5 h-3.5 text-muted-foreground" /> not loaded</>}</dd>
             <dt>Qwen3.5 LLM</dt>
-            <dd>{info.llm_ready ? "✅ ready" : "⏳ not loaded"}</dd>
+            <dd className="flex items-center gap-1.5">{info.llm_ready ? <><CheckCircle2 className="w-3.5 h-3.5 text-success" /> ready</> : <><Loader2 className="w-3.5 h-3.5 text-muted-foreground" /> not loaded</>}</dd>
           </dl>
         ) : (
           <div className="text-sm text-muted-foreground">Loading...</div>

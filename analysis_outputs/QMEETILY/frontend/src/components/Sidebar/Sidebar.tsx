@@ -4,9 +4,11 @@ import { Mic, Square, Home, Settings, FileText, NotebookPen } from "lucide-react
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { invoke } from "@tauri-apps/api/core";
-import { useEffect, useState } from "react";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { useEffect, useState, type ReactNode } from "react";
 import type { AppInfo } from "@/lib/bindings";
 import { SidecarStatus } from "@/components/SidecarStatus";
+import packageJson from "../../../package.json";
 
 interface MeetingSummary {
   id: number;
@@ -37,12 +39,25 @@ export function Sidebar({
   const [recent, setRecent] = useState<MeetingSummary[]>([]);
   const [titleDraft, setTitleDraft] = useState("");
 
-
-  // Load recent meetings on mount
-  useEffect(() => {
+  // Load recent meetings on mount and after every recording stops.
+  const loadRecent = () => {
     invoke<MeetingSummary[]>("list_meetings", { limit: 8, offset: 0 })
       .then(setRecent)
       .catch(() => setRecent([]));
+  };
+
+  useEffect(() => {
+    loadRecent();
+  }, []);
+
+  useEffect(() => {
+    const unlisten: Promise<UnlistenFn> = listen<number>(
+      "recording-stopped",
+      () => loadRecent()
+    );
+    return () => {
+      unlisten.then((f) => f());
+    };
   }, []);
 
   return (
@@ -50,7 +65,7 @@ export function Sidebar({
       {/* Logo + status */}
       <div className="p-4 border-b">
         <div className="flex items-center gap-2">
-          <span className="text-2xl">📋</span>
+          <NotebookPen className="w-6 h-6 text-primary" />
           <span className="font-bold text-lg">QMeetily</span>
         </div>
         <div className="mt-2">
@@ -151,7 +166,7 @@ export function Sidebar({
 
       {/* Footer */}
       <div className="p-3 border-t text-xs text-muted-foreground">
-        <div>QMeetily v0.1.0</div>
+        <div>QMeetily v{packageJson.version}</div>
         <div className="text-[10px] mt-0.5">Qwen3-native · 100% local</div>
       </div>
     </aside>
@@ -164,7 +179,7 @@ function NavButton({
   active,
   onClick,
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   label: string;
   active: boolean;
   onClick: () => void;
@@ -172,7 +187,7 @@ function NavButton({
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+      className={`w-full flex items-center gap-3 px-2 py-2 rounded-lg text-sm transition-colors ${
         active ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted"
       }`}
     >

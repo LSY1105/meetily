@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { Headphones, FileText, Zap, Coins, Scale, CheckSquare, HelpCircle, AlertTriangle } from "lucide-react";
 
 interface TranscriptSegment {
   id: number;
@@ -36,12 +37,12 @@ interface LiveTranscriptProps {
   onMeetingEnd: () => void;
 }
 
-const DECISION_BADGES: Record<Decision['type'], { icon: string; color: string; label: string }> = {
-  deal:     { icon: '💰', color: 'border-l-success bg-success-soft/50',    label: 'Deal' },
-  decision: { icon: '⚖️', color: 'border-l-info bg-info-soft/50',          label: 'Decision' },
-  action:   { icon: '✅', color: 'border-l-info bg-info-soft/50',          label: 'Action' },
-  question: { icon: '❓', color: 'border-l-warning bg-warning-soft/50',    label: 'Question' },
-  risk:     { icon: '⚠️', color: 'border-l-destructive bg-destructive-soft/50', label: 'Risk' },
+const DECISION_BADGES: Record<Decision['type'], { icon: ReactNode; color: string; label: string }> = {
+  deal:     { icon: <Coins className="w-3.5 h-3.5" />,         color: 'border-l-success bg-success-soft/50',          label: 'Deal' },
+  decision: { icon: <Scale className="w-3.5 h-3.5" />,         color: 'border-l-info bg-info-soft/50',                label: 'Decision' },
+  action:   { icon: <CheckSquare className="w-3.5 h-3.5" />,   color: 'border-l-info bg-info-soft/50',                label: 'Action' },
+  question: { icon: <HelpCircle className="w-3.5 h-3.5" />,    color: 'border-l-warning bg-warning-soft/50',          label: 'Question' },
+  risk:     { icon: <AlertTriangle className="w-3.5 h-3.5" />, color: 'border-l-destructive bg-destructive-soft/50', label: 'Risk' },
 };
 
 export function LiveTranscript({ currentMeetingId, onMeetingStart, onMeetingEnd }: LiveTranscriptProps) {
@@ -124,7 +125,7 @@ export function LiveTranscript({ currentMeetingId, onMeetingStart, onMeetingEnd 
   };
 
   return (
-    <div className="grid grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Left: Recording controls + transcript (2 cols) */}
       <div className="col-span-2 space-y-4">
         {!isRecording ? (
@@ -153,12 +154,12 @@ export function LiveTranscript({ currentMeetingId, onMeetingStart, onMeetingEnd 
 
         <div
           ref={scrollRef}
-          className="h-[600px] overflow-y-auto border rounded-lg p-4 space-y-2 bg-card"
+          className="h-[min(600px,calc(100vh-12rem))] overflow-y-auto border rounded-lg p-4 space-y-2 bg-card"
         >
           {segments.length === 0 && (
             <div className="text-muted-foreground text-center py-12">
              {isRecording
-               ? "🎧 Recording… (v0.1: transcripts appear after the meeting ends)"
+               ? "Recording… (transcripts appear after the meeting ends)"
                : "Start a recording to see the transcript"}
             </div>
           )}
@@ -190,7 +191,10 @@ export function LiveTranscript({ currentMeetingId, onMeetingStart, onMeetingEnd 
 
         {summary && (
           <div className="border rounded-lg p-4 bg-card">
-            <h3 className="font-semibold mb-2">📋 Meeting Summary</h3>
+            <h3 className="font-semibold mb-2 flex items-center gap-1.5">
+              <FileText className="w-4 h-4 text-muted-foreground" />
+              Meeting Summary
+            </h3>
             <div className="prose prose-sm max-w-none">
               <pre className="whitespace-pre-wrap text-sm">{summary}</pre>
             </div>
@@ -201,7 +205,8 @@ export function LiveTranscript({ currentMeetingId, onMeetingStart, onMeetingEnd 
       {/* Right: Live decisions panel */}
       <div className="space-y-3">
         <h2 className="font-semibold flex items-center gap-2">
-          <span>⚡ Live Insights</span>
+          <Zap className="w-4 h-4 text-muted-foreground" />
+          <span>Live Insights</span>
           {decisions.length > 0 && (
             <span className="text-xs text-muted-foreground">({decisions.length})</span>
           )}
@@ -210,8 +215,8 @@ export function LiveTranscript({ currentMeetingId, onMeetingStart, onMeetingEnd 
         <div className="space-y-2 max-h-[600px] overflow-y-auto">
           {decisions.length === 0 && isRecording && (
             <div className="text-xs text-muted-foreground p-3 border border-dashed rounded">
-             Live decision / action / risk extraction ships in v0.2.
-             In v0.1, the summary is generated after the meeting ends.
+             Live insights ship in a future release.
+             For now, the summary is generated after the meeting ends.
             </div>
           )}
 
