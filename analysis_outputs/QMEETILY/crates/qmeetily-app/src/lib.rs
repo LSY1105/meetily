@@ -74,12 +74,17 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let handle = app.handle().clone();
-            tauri::async_runtime::block_on(async move {
-                let state = AppState::new(handle).await
-                    .map_err(|e| format!("init failed: {e}"))?;
-                app.manage(state);
-                Ok::<(), String>(())
-            })?;
+            // setup runs inside Tauri's tokio runtime, so any `block_on` here
+            // would deadlock the worker. Spawn the async init and synchronously
+            // wait via a std mpsc channel (OS-level blocking, no tokio dep).
+            let (tx, rx) = std::sync::mpsc::channel::<std::result::Result<AppState, AppError>>();
+            tauri::async_runtime::spawn(async move {
+                let _ = tx.send(AppState::new(handle).await);
+            });
+            let state = rx.recv()
+                .map_err(|e| format!("init channel dropped: {e}"))?
+                .map_err(|e| format!("init failed: {e}"))?;
+            app.manage(state);
             info!("QMeetily ready");
             Ok(())
         })

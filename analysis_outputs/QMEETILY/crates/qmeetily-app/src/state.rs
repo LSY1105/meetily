@@ -71,16 +71,10 @@ impl AppState {
         // before letting the app finish initialising. If it fails to start
         // or never becomes ready we propagate the error so the user sees
         // a startup failure instead of a silently-broken recording flow.
-        let sidecar = AsrSidecar::start().and_then(|s| {
-            // wait_ready is async; we have to drive it from a blocking
-            // context. The future is cheap (HTTP GET + sleep loop) so
-            // tauri::async_runtime::block_on is fine here.
-            let s_for_block = s.clone();
-            let ready = tauri::async_runtime::block_on(async move {
-                s_for_block.wait_ready(Duration::from_secs(60)).await
-            });
-            ready.map(|_| s)
-        })?;
+        // `new` is async so we can await wait_ready directly — no block_on
+        // (which would deadlock the tokio-rt-worker that we are spawned on).
+        let sidecar = AsrSidecar::start()?;
+        sidecar.wait_ready(Duration::from_secs(60)).await?;
         tracing::info!("ASR sidecar ready at {}", sidecar.url());
 
         Ok(Self {
