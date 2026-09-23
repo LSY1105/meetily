@@ -8,7 +8,7 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 
 use crate::asr::{AsrClient, AsrSidecar};
-use crate::audio::AudioSession;
+use crate::audio::{AsrPipeline, AudioSession};
 use crate::db::Db;
 use crate::error::Result;
 
@@ -19,6 +19,7 @@ pub struct AppState {
     asr: RwLock<Option<Arc<AsrClient>>>,
     asr_sidecar: Option<Arc<AsrSidecar>>,
     audio_session: parking_lot::Mutex<Option<AudioSession>>,
+    audio_asr: parking_lot::Mutex<Option<Arc<AsrPipeline>>>,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -89,6 +90,7 @@ impl AppState {
             asr: RwLock::new(None),
             asr_sidecar: Some(sidecar),
             audio_session: parking_lot::Mutex::new(None),
+            audio_asr: parking_lot::Mutex::new(None),
         })
     }
 
@@ -104,6 +106,7 @@ impl AppState {
             asr: RwLock::new(None),
             asr_sidecar: None,
             audio_session: parking_lot::Mutex::new(None),
+            audio_asr: parking_lot::Mutex::new(None),
         })
     }
 
@@ -167,6 +170,14 @@ impl AppState {
 
     pub fn take_audio_session(&self) -> Option<AudioSession> {
         self.audio_session.lock().take()
+    }
+
+    pub fn set_audio_asr(&self, asr: Option<Arc<AsrPipeline>>) {
+        *self.audio_asr.lock() = asr;
+    }
+
+    pub fn take_audio_asr(&self) -> Option<Arc<AsrPipeline>> {
+        self.audio_asr.lock().take()
     }
 }
 

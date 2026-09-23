@@ -9,12 +9,14 @@
 //! and replace the complex 3-layer sender stack with a simple crossbeam
 //! channel.
 
+pub mod asr_pipeline;
 pub mod capture;
 pub mod mixer;
 pub mod session;
 pub mod vad;
 pub mod wav;
 
+pub use asr_pipeline::AsrPipeline;
 pub use capture::{AudioCapture, CaptureConfig, CaptureError};
 pub use mixer::{AudioMixer, MixedFrame};
 pub use session::AudioSession;
