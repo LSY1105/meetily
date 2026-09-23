@@ -12,7 +12,6 @@ pub mod meetings;
 pub mod transcripts;
 pub mod decisions;
 
-use rusqlite::{Connection, OpenFlags};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::SqlitePool;
 use std::path::Path;
@@ -22,7 +21,6 @@ use crate::error::Result;
 
 pub struct Db {
     pool: SqlitePool,
-    raw: std::sync::Mutex<Connection>,
 }
 
 impl Db {
@@ -40,22 +38,11 @@ impl Db {
             .await?;
 
         sqlx::query(schema::SCHEMA_SQL).execute(&pool).await?;
-        let raw = Connection::open_with_flags(
-            path,
-            OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE,
-        )?;
 
-        Ok(Self {
-            pool,
-            raw: std::sync::Mutex::new(raw),
-        })
+        Ok(Self { pool })
     }
 
     pub fn pool(&self) -> &SqlitePool {
         &self.pool
-    }
-
-    pub fn raw(&self) -> std::sync::MutexGuard<'_, Connection> {
-        self.raw.lock().expect("raw connection mutex poisoned")
     }
 }

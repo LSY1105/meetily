@@ -7,14 +7,15 @@
 
 use std::sync::Arc;
 
+use anyhow::anyhow;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
 
-use crate::audio::{AudioCapture, CaptureConfig, WavWriter};
+use crate::audio::AudioSession;
 use crate::db::meetings::Meeting;
-use crate::db::transcripts::{NewTranscript, Transcript};
+use crate::db::transcripts::Transcript;
 use crate::state::{AppState, RecordingState};
-use crate::error::Result;
+use crate::error::{AppError, Result};
 use crate::summary_engine::models::ModelDef;
 
 #[derive(Debug, Serialize)]
@@ -81,7 +82,7 @@ pub async fn start_recording(
     use chrono::Utc;
 
     if state.is_recording() {
-        return Err(crate::error::AppError::AlreadyRecording);
+        return Err(AppError::AlreadyRecording);
     }
 
     let new_meeting = NewMeeting {
@@ -110,35 +111,15 @@ pub async fn start_recording(
         }
     }
 
-    // Audio capture: open cpal stream, spawn a worker that drains the
-    // crossbeam channel and writes samples to <data_dir>/recordings/<id>.wav.
-    // On stop, the cpal Stream is dropped (audio halts) and the worker
-    // exits when its receiver closes; finalize() patches the WAV header.
+    // AudioSession owns the cpal stream + wav writer inside a
+    // spawn_blocking worker; only the JoinHandle and a one-shot stop
+    // signal leak back into AppState, which is why the field is Send-safe.
     let recordings_dir = state.config().data_dir.join("recordings");
     std::fs::create_dir_all(&recordings_dir)?;
     let audio_path = recordings_dir.join(format!("{meeting_id}.wav"));
-    let audio_path_for_worker = audio_path.clone();
-
-    let cap = tauri::async_runtime::spawn_blocking(move || {
-        AudioCapture::microphone(CaptureConfig::default())
-    })
-    .await
-    .map_err(|e| crate::error::AppError::Other(format!("audio capture join: {e}")))?
-    .map_err(|e| crate::error::AppError::Other(format!("audio capture open: {e}")))?;
-
-    let sample_rate = cap.sample_rate();
-    let rx = cap.receiver.clone();
-
-    let worker = tauri::async_runtime::spawn_blocking(move || -> std::io::Result<()> {
-        let mut w = WavWriter::create(&audio_path_for_worker, sample_rate, 1)?;
-        while let Ok(chunk) = rx.recv() {
-            w.write_samples(&chunk)?;
-        }
-        w.finalize()
-    });
-
-    state.set_audio_capture(Some(cap));
-    state.set_audio_worker(Some(worker));
+    let session = AudioSession::start(audio_path)
+        .map_err(|e| AppError::Other(anyhow!("audio session start: {e}")))?;
+    state.set_audio_session(Some(session));
 
     let _ = app.emit("recording-started", meeting_id);
     Ok(meeting_id)
@@ -154,12 +135,9 @@ pub async fn stop_recording(
     state.set_recording(RecordingState::Stopping)?;
     state.db().end_meeting(meeting_id, Utc::now()).await?;
 
-    // Halt audio capture by dropping the cpal Stream; the worker then
-    // exits naturally because the crossbeam channel closes.
-    let cap = state.take_audio_capture();
-    drop(cap);
-    if let Some(handle) = state.take_audio_worker() {
-        let _ = handle.await;
+    // Halt audio capture + wait for the WAV header to be finalised.
+    if let Some(session) = state.take_audio_session() {
+        session.stop().await;
     }
 
     // Persist the recorded audio path on the meeting row so the Library
@@ -235,7 +213,7 @@ pub async fn generate_summary(
         .join("\n");
 
     let mgr = SidecarManager::new(state.config().data_dir.clone())
-        .map_err(crate::error::AppError::Other)?;
+        .map_err(AppError::Other)?;
     let mgr = std::sync::Arc::new(mgr);
     let client = LlmClient::new(mgr.clone(), state.config().data_dir.clone());
 
@@ -244,7 +222,7 @@ pub async fn generate_summary(
     let summary = client
         .summarize_transcript(full_text, Some(model_name.clone()), None, None)
         .await
-        .map_err(crate::error::AppError::Other)?;
+        .map_err(AppError::Other)?;
 
     sqlx::query(
         "INSERT INTO summaries (meeting_id, summary_markdown, language, model, created_at)

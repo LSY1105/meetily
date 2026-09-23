@@ -14,7 +14,6 @@ use anyhow::{Context, Result};
 use parking_lot::Mutex;
 
 const DEFAULT_PORT: u16 = 11436;
-const READY_TIMEOUT: Duration = Duration::from_secs(60);
 
 pub struct AsrSidecar {
     child: Mutex<Option<Child>>,
