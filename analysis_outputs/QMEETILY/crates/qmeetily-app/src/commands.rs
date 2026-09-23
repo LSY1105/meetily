@@ -11,7 +11,7 @@ use anyhow::anyhow;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
 
-use crate::audio::AudioSession;
+use crate::audio::{AsrPipeline, AudioSession};
 use crate::db::meetings::Meeting;
 use crate::db::transcripts::Transcript;
 use crate::state::{AppState, RecordingState};
@@ -117,7 +117,18 @@ pub async fn start_recording(
     let recordings_dir = state.config().data_dir.join("recordings");
     std::fs::create_dir_all(&recordings_dir)?;
     let audio_path = recordings_dir.join(format!("{meeting_id}.wav"));
-    let session = AudioSession::start(audio_path)
+
+    // Optional ASR pipeline: per-chunk HTTP upload + DB insert on a
+    // 5-second interval, entirely in async tasks. None when no ASR URL
+    // is configured (recording still produces a WAV).
+    let asr = state.config().asr_url.clone().map(|url| {
+        let asr_model = state.config().asr_model.clone().unwrap_or_default();
+        Arc::new(AsrPipeline::start(state.db().clone(), url, asr_model, meeting_id))
+    });
+    state.set_audio_asr(asr.clone());
+    let asr_for_session = asr;
+
+    let session = AudioSession::start(audio_path, asr_for_session)
         .map_err(|e| AppError::Other(anyhow!("audio session start: {e}")))?;
     state.set_audio_session(Some(session));
 
@@ -135,9 +146,13 @@ pub async fn stop_recording(
     state.set_recording(RecordingState::Stopping)?;
     state.db().end_meeting(meeting_id, Utc::now()).await?;
 
-    // Halt audio capture + wait for the WAV header to be finalised.
+    // Halt audio capture first; the AsrPipeline's worker will then
+    // drain its final buffer on its own stop signal below.
     if let Some(session) = state.take_audio_session() {
         session.stop().await;
+    }
+    if let Some(asr) = state.take_audio_asr() {
+        asr.stop().await;
     }
 
     // Persist the recorded audio path on the meeting row so the Library
