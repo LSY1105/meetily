@@ -22,3 +22,5 @@ pub use mixer::{AudioMixer, MixedFrame};
 pub use session::AudioSession;
 pub use vad::{VadEvent, VadProcessor};
 pub use wav::WavWriter;
+pub mod resample;
+pub use resample::resample_to_16k;

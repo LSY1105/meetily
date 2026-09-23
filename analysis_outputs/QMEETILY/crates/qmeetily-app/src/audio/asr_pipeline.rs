@@ -21,6 +21,7 @@ use tauri::async_runtime::JoinHandle;
 use tokio::sync::oneshot;
 
 use crate::audio::WavWriter;
+use crate::audio::resample::{resample_to_16k, ASR_SAMPLE_RATE};
 use crate::db::Db;
 
 const FLUSH_INTERVAL_SECS: u64 = 5;
@@ -140,7 +141,17 @@ async fn flush_once(
         return;
     }
 
-    let wav_bytes = match build_wav_bytes(&samples, sr) {
+    // The cpal stream runs at its native rate (often 48 kHz); the sidecar
+    // expects 16 kHz mono PCM, so resample before serialising the WAV.
+    let asr_samples = match resample_to_16k(&samples, sr) {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::warn!("ASR pipeline: resample: {e}");
+            return;
+        }
+    };
+
+    let wav_bytes = match build_wav_bytes(&asr_samples, ASR_SAMPLE_RATE) {
         Ok(b) => b,
         Err(e) => {
             tracing::warn!("ASR pipeline: build_wav: {e}");
@@ -205,3 +216,4 @@ async fn upload(wav: &[u8], url: &str, model: &str) -> anyhow::Result<String> {
     let parsed: TranscriptionResponse = resp.json().await?;
     Ok(parsed.text)
 }
+

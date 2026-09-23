@@ -28,6 +28,7 @@ chrono.workspace = true
 uuid.workspace = true
 
 cpal.workspace = true
+rubato.workspace = true
 sqlx.workspace = true
 rusqlite.workspace = true
 
@@ -59,3 +60,4 @@ name = "audio_smoke_test"
 
 [[example]]
 name = "asr_smoke_test"
+
