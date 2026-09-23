@@ -1,15 +1,8 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
+import type { AppInfo } from "@/lib/bindings";
 
-interface AppInfo {
-  name: string;
-  version: string;
-  is_recording: boolean;
-  sidecar_running?: boolean;
-  asr_ready?: boolean;
-  llm_ready?: boolean;
-}
 
 export function SidecarStatus({ info }: { info: AppInfo | null }) {
   if (!info) {

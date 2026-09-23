@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import type { AppInfo } from "@/lib/bindings";
 import { invoke } from "@tauri-apps/api/core";
 import { Toaster, toast } from "sonner";
 
@@ -9,11 +10,6 @@ import { LiveTranscript } from "@/components/LiveTranscript";
 import { MeetingLibrary } from "@/components/MeetingLibrary";
 import { SettingsPanel } from "@/components/SettingsPanel";
 
-interface AppInfo {
-  name: string;
-  version: string;
-  is_recording: boolean;
-}
 
 type View = "home" | "library" | "settings";
 

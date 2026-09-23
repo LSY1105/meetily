@@ -5,6 +5,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Input } from "@/components/ui/input";
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
+import type { AppInfo } from "@/lib/bindings";
 import { SidecarStatus } from "@/components/SidecarStatus";
 
 interface MeetingSummary {
@@ -23,14 +24,6 @@ interface SidebarProps {
   appInfo: AppInfo | null;
 }
 
-interface AppInfo {
-  name: string;
-  version: string;
-  is_recording: boolean;
-  sidecar_running?: boolean;
-  asr_ready?: boolean;
-  llm_ready?: boolean;
-}
 
 export function Sidebar({
   activeView,

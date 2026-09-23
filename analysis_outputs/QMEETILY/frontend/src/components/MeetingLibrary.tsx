@@ -87,7 +87,7 @@ export function MeetingLibrary({ onOpen }: MeetingLibraryProps) {
               <div className="text-xs text-muted-foreground mb-1">
                 Meeting #{hit.meeting_id} · sequence {hit.sequence_id}
               </div>
-              <div className="text-sm">{hit.rewritten_text || hit.text}</div>
+              <div className="text-sm">{highlight(hit.rewritten_text || hit.text, searchQuery)}</div>
             </Card>
           ))}
         </div>
@@ -125,5 +125,19 @@ export function MeetingLibrary({ onOpen }: MeetingLibraryProps) {
         </div>
       )}
     </div>
+  );
+}
+function highlight(text: string, query: string) {
+  if (!query.trim()) return text;
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const parts = text.split(new RegExp(`(${escaped})`, "gi"));
+  return parts.map((part, i) =>
+    part.toLowerCase() === query.toLowerCase() ? (
+      <mark key={i} className="bg-warning-soft text-warning-fg px-0.5 rounded">
+        {part}
+      </mark>
+    ) : (
+      <span key={i}>{part}</span>
+    )
   );
 }

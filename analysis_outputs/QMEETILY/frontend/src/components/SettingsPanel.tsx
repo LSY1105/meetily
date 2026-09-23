@@ -1,15 +1,8 @@
 "use client";
 
 import { Card } from "@/components/ui/card";
+import type { AppInfo } from "@/lib/bindings";
 
-interface AppInfo {
-  name: string;
-  version: string;
-  is_recording: boolean;
-  sidecar_running?: boolean;
-  asr_ready?: boolean;
-  llm_ready?: boolean;
-}
 
 export function SettingsPanel({ info }: { info: AppInfo | null }) {
   return (
