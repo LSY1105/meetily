@@ -21,7 +21,7 @@ use super::models::{get_available_models, get_model_by_name};
 // ============================================================================
 
 /// Detailed download progress info (MB-based with speed)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct DownloadProgress {
     /// Bytes downloaded so far
     pub downloaded_bytes: u64,
@@ -56,7 +56,7 @@ impl DownloadProgress {
 }
 
 /// Model status in the system
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ModelStatus {
     /// Model is not yet downloaded
@@ -72,11 +72,11 @@ pub enum ModelStatus {
     Corrupted { file_size: u64, expected_min_size: u64 },
 
     /// Error occurred with the model
-    Error(String),
+    Error { message: String },
 }
 
 /// Model information for UI display
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct ModelInfo {
     /// Model name (e.g., "gemma3:1b")
     pub name: String,
@@ -261,7 +261,7 @@ impl ModelManager {
                             model_def.name,
                             e
                         );
-                        ModelStatus::Error(format!("Failed to read metadata: {}", e))
+                        ModelStatus::Error { message: format!("Failed to read metadata: {}", e) }
                     }
                 }
             } else {
@@ -595,7 +595,7 @@ impl ModelManager {
                     {
                         let mut models = self.available_models.write().await;
                         if let Some(model_info) = models.get_mut(model_name) {
-                            model_info.status = ModelStatus::Error("Download timeout - No data received for 30 seconds".to_string());
+                            model_info.status = ModelStatus::Error { message: "Download timeout - No data received for 30 seconds".to_string() };
                         }
                     }
 
@@ -629,7 +629,7 @@ impl ModelManager {
                             {
                                 let mut models = self.available_models.write().await;
                                 if let Some(model_info) = models.get_mut(model_name) {
-                                    model_info.status = ModelStatus::Error(error_msg.to_string());
+                                    model_info.status = ModelStatus::Error { message: error_msg.to_string() };
                                 }
                             }
 
@@ -732,7 +732,7 @@ impl ModelManager {
             {
                 let mut models = self.available_models.write().await;
                 if let Some(model_info) = models.get_mut(model_name) {
-                    model_info.status = ModelStatus::Error(format!("Validation failed: {}", e));
+                    model_info.status = ModelStatus::Error { message: format!("Validation failed: {}", e) };
                 }
             }
 

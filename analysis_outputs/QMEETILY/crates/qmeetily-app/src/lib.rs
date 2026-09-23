@@ -51,6 +51,8 @@ pub fn run() {
         commands::get_transcript,
         commands::generate_summary,
         commands::get_available_models,
+        commands::list_model_status,
+        commands::download_model,
     ]);
 
     // Regenerate the frontend bindings on every dev build. Release builds

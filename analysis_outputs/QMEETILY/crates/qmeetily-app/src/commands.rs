@@ -222,6 +222,47 @@ pub async fn get_available_models() -> Result<Vec<ModelDef>> {
 
 #[tauri::command]
 #[specta::specta]
+pub async fn list_model_status(
+    state: State<'_, AppState>,
+) -> Result<Vec<crate::summary_engine::model_manager::ModelInfo>> {
+    use crate::summary_engine::model_manager::ModelManager;
+    let mgr = ModelManager::new_with_models_dir(Some(state.config().models_dir))
+        .map_err(AppError::Other)?;
+    mgr.scan_models().await.map_err(AppError::Other)?;
+    Ok(mgr.list_models().await)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn download_model(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    model_name: String,
+) -> Result<()> {
+    use crate::summary_engine::model_manager::{DownloadProgress, ModelManager};
+    let mgr = ModelManager::new_with_models_dir(Some(state.config().models_dir))
+        .map_err(AppError::Other)?;
+    mgr.scan_models().await.map_err(AppError::Other)?;
+    let app_for_cb = app.clone();
+    let name_for_cb = model_name.clone();
+    mgr.download_model_detailed(
+        &model_name,
+        Some(Box::new(move |p: DownloadProgress| {
+            let payload = serde_json::json!({
+                "model_name": name_for_cb,
+                "progress": p,
+            });
+            let _ = app_for_cb.emit("model-download-progress", payload);
+        })),
+    )
+    .await
+    .map_err(AppError::Other)?;
+    let _ = app.emit("model-download-complete", model_name.clone());
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn generate_summary(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -296,6 +337,8 @@ mod tests {
             get_transcript,
             generate_summary,
             get_available_models,
+            list_model_status,
+            download_model,
         ];
     }
 }

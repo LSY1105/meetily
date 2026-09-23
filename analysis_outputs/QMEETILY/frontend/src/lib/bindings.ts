@@ -23,6 +23,8 @@ export const commands = {
 	getTranscript: (meetingId: number) => typedError<Transcript[], string>(__TAURI_INVOKE("get_transcript", { meetingId })),
 	generateSummary: (meetingId: number) => typedError<string, string>(__TAURI_INVOKE("generate_summary", { meetingId })),
 	getAvailableModels: () => typedError<ModelDef[], string>(__TAURI_INVOKE("get_available_models")),
+	listModelStatus: () => typedError<ModelInfo[], string>(__TAURI_INVOKE("list_model_status")),
+	downloadModel: (modelName: string) => typedError<null, string>(__TAURI_INVOKE("download_model", { modelName })),
 };
 
 /* Types */
@@ -79,6 +81,39 @@ export type ModelDef = {
 	/**  Short description for UI */
 	description: string,
 };
+
+/**  Model information for UI display */
+export type ModelInfo = {
+	/**  Model name (e.g., "gemma3:1b") */
+	name: string,
+	/**  Display name for UI */
+	display_name: string,
+	/**  Current status */
+	status: ModelStatus,
+	/**  File path (if available) */
+	path: string,
+	/**  Size in MB */
+	size_mb: number,
+	/**  Context window size in tokens */
+	context_size: number,
+	/**  Description */
+	description: string,
+	/**  GGUF filename on disk */
+	gguf_file: string,
+};
+
+/**  Model status in the system */
+export type ModelStatus = 
+/**  Model is not yet downloaded */
+{ type: "not_downloaded" } | 
+/**  Model is currently being downloaded (progress 0-100) */
+{ type: "downloading"; progress: number } | 
+/**  Model is downloaded and ready to use */
+{ type: "available" } | 
+/**  Model file is corrupted and needs redownload */
+{ type: "corrupted"; file_size: number; expected_min_size: number } | 
+/**  Error occurred with the model */
+{ type: "error"; message: string };
 
 /**  Sampling parameters supported by the built-in AI -> llama-helper pipeline. */
 export type SamplingParams = {

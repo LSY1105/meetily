@@ -2,6 +2,7 @@
 
 import { Card } from "@/components/ui/card";
 import { CheckCircle2, PauseCircle, Loader2, CircleDot } from "lucide-react";
+import { ModelDownloadCard } from "@/components/ModelDownloadCard";
 import type { AppInfo } from "@/lib/bindings";
 
 
@@ -31,23 +32,7 @@ export function SettingsPanel({ info }: { info: AppInfo | null }) {
         </p>
       </Card>
 
-      <Card className="p-4">
-        <h2 className="font-semibold mb-3">Models</h2>
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span>Qwen3-ASR-0.6B</span>
-            <span className="text-muted-foreground">~1.2 GB</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Qwen3.5-4B</span>
-            <span className="text-muted-foreground">~2.6 GB</span>
-          </div>
-        </div>
-        <p className="text-xs text-muted-foreground mt-3">
-          Models auto-download on first launch from HuggingFace / ModelScope.
-          Cached under <code>%LOCALAPPDATA%/QMeetily/models/</code>.
-        </p>
-      </Card>
+      <ModelDownloadCard />
 
       <Card className="p-4">
         <h2 className="font-semibold mb-3">MCP Server</h2>
