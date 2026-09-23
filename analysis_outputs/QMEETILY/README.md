@@ -57,7 +57,7 @@ The correct path is much simpler:
 | Per-chunk ASR upload (5 s interval, populates transcripts) | ✅ **P0-3b** |
 | 16 kHz resample (cpal native rate → ASR via rubato SincFixedIn) | ✅ **P0-3c** |
 | TS bindings auto-generation (`tauri-specta` + `specta`) | ✅ **PR #1.5** |
-| Sidecar auto-launch (process spawn on app boot) | ⏳ Future (v0.2) |
+| Sidecar auto-launch (Python subprocess on app boot) | ✅ **AsrSidecar::start** in v0.1 |
 
 See `docs/LLM_VERIFICATION.md`, `docs/AUDIO_VERIFICATION.md`, `docs/TAURI_INTEGRATION_VERIFICATION.md`, `docs/FRONTEND_INTEGRATION.md`, `docs/ASR_PIPELINE.md`, and `docs/TTS_PIPELINE.md`.
 
