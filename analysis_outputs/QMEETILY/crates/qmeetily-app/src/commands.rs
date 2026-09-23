@@ -269,3 +269,33 @@ pub async fn generate_summary(
 
 
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tauri_specta::collect_commands;
+
+    /// Compile-time lock on PR #1.5 invariants. Just constructing this list
+    /// exercises `collect_commands!` for every command; the macro expansion
+    /// fails if any of these regress:
+    ///   * a `#[tauri::command]` is missing `#[specta::specta]`
+    ///   * an arg / return type is missing `specta::Type`
+    ///   * `NewMeeting` (a command arg) is missing `Serialize`
+    /// The snapshot list MUST match lib.rs's production `collect_commands![]`.
+    #[test]
+    fn commands_carry_specta_derive() {
+        let _ = collect_commands![
+            ping,
+            get_app_info,
+            get_asr_sidecar_status,
+            start_recording,
+            stop_recording,
+            list_meetings,
+            get_meeting,
+            search_meetings,
+            get_transcript,
+            generate_summary,
+            get_available_models,
+        ];
+    }
+}
