@@ -45,6 +45,31 @@ All notable changes to QMeetily are documented here.
 - [x] **Frontend integration** ✅ — Sidebar + 3 views + Recording button + Recent list, TypeScript 0 errors
 - [x] **ASR pipeline** ✅ — Qwen3-ASR-0.6B Python sidecar, HTTP 200 in 5.58s, language auto-detect
 - [x] **Real meeting pipeline test** ✅ — Windows SAPI TTS → ASR (100% char-accurate) → LLM summary (5-section Markdown)
-- [ ] Sidecar auto-launch (currently manual uvicorn)
+- [x] **Sidecar auto-launch** ✅ — AsrSidecar::start (commit `34ff7ea`)
+- [x] **Meeting export + model download UI** ✅ — commits `70315ee`, `b2bb58b` (User Guide → *Exporting a meeting*, *Managing models*)
 - [ ] Streaming ASR partial updates UI
 - [ ] Tauri GUI launch (requires desktop, not headless)
+
+
+### Added (since 2026-09-23)
+- **Model download UI** (`Settings` → `Models`). Status per model
+  (Ready / Not downloaded / Corrupted / Downloading), manual re-download,
+  progress bar with speed. Commit `70315ee`.
+- **Meeting export** from `Library`. Dropdown menu per row with `txt`,
+  `srt`, `json`, `md` formats; native save dialog. Commit `b2bb58b`.
+- **Real model load events**. `SidecarStatus` ASR/LLM badges subscribe to
+  `model-loading` / `model-loaded` / `model-load-failed` events from the
+  sidecar. Commit `34ff7ea`.
+- **Inner-helper refactor + tests**. `export_meeting_inner(db, id, format)`
+  and `list_model_status_inner(models_dir)` extracted as `pub(crate)` so
+  tests can hit the logic without a live `AppState`. 10 new tests
+  (6 pure-function + 3 DB-fixture + 1 tempdir); `cargo check --tests`
+  clean. Commit `29ec590`.
+- **UI a11y polish**. focus-visible rings on every native button and
+  `[role="button"]`, `aria-live` regions on recording / model-load /
+  download progress, keyboard navigation on meeting cards, decorative
+  lucide icons marked `aria-hidden`. Commit `f6d4a56`.
+- **Bug fix**: `--destructive-soft` and `--destructive-border` CSS tokens
+  were joined to `--dysical-via-foreground` line with literal `\\`n``, 
+  which made `Risk-digits-gates-digits-gates-bg-destructive-soft` transparent
+  in both light and dark themes. Commit `f6d4a56`.

@@ -40,6 +40,44 @@ Subsequent launches: instant.
 3. Press Enter
 4. Matching transcript snippets appear
 
+
+## Exporting a meeting
+
+Each meeting in the **Library** view has a download icon on the right.
+Click it to choose a format:
+
+| Format | Best for |
+|---|---|
+| `Plain text (.txt)` | Quick read or paste into a doc |
+| `SubRip subtitles (.srt)` | Import into video editors; per-segment timecodes |
+| `JSON (.json)` | Programmatic access; full meeting + transcripts + summary |
+| `Markdown (.md)` | Wiki / git repos; headings + transcript + summary sections |
+
+A native save dialog opens. The file name defaults to the meeting title
+(sanitized for filesystem safety). The exported file always reflects the
+`rewritten_text` version of each segment when one exists — the raw ASR
+text is included only in `JSON`.
+
+
+
+## Managing models
+
+Open **Settings → Models**. Each catalog entry shows one of:
+
+- **Ready** (green check) — file downloaded and passed size validation.
+- **Not downloaded** — click `Download` to fetch.
+- **Corrupted** (yellow warning) — file present but below the minimum
+  size threshold. Click `Re-download` to repair.
+- **Downloading** — live progress bar + MB/s speed.
+
+Models cache under `%LOCALAPPDATA%/QMeetily/models/` (Windows),
+`~/Library/Application Support/QMeetily/models/` (macOS), or
+`~/.local/share/QMeetily/models/` (Linux).
+
+The status badges in the sidebar (`ASR`, `LLM`) light up live as the
+sidecar reports `model-loading` / `model-loaded` / `model-load-failed`
+events.
+
 ## MCP integration (advanced)
 
 Add to Claude Desktop config:

@@ -51,16 +51,44 @@ The correct path is much simpler:
 | **ASR pipeline** | ✅ **Qwen3-ASR-0.6B sidecar, HTTP 200 in 5.58s, language auto-detect** |
 | **TTS pipeline** | ✅ **Qwen3-TTS-0.6B-Base, 6.48s WAV output, voice clone works** |
 | DB schema (meetings/transcripts/decisions/summaries) | ✅ Defined |
-| Tauri commands (11 commands) | ✅ **auto-generated via `tauri-specta`** |
+| Tauri commands (14 commands) | ✅ **auto-generated via `tauri-specta`** |
 | MCP server (4 tools) | ✅ stdlib impl (no rmcp) |
 | Unit tests | ✅ **16/16 passing** |
 | Per-chunk ASR upload (5 s interval, populates transcripts) | ✅ **P0-3b** |
 | 16 kHz resample (cpal native rate → ASR via rubato SincFixedIn) | ✅ **P0-3c** |
 | TS bindings auto-generation (`tauri-specta` + `specta`) | ✅ **PR #1.5** |
+| Model download UI (Settings → Models, status badges, manual re-download) | ✅ **commit `70315ee`** |
+| Meeting export (txt / srt / json / md from Library) | ✅ **commit `b2bb58b`** |
+| Real model load events (SidecarStatus ASR/LLM live badges) | ✅ **commit `34ff7ea`** |
+| Unit + DB-fixture test coverage (`commands.rs` inner helpers) | ✅ **commit `29ec590`** |
 | Sidecar auto-launch (Python subprocess on app boot) | ✅ **AsrSidecar::start** in v0.1 |
 
 See `docs/LLM_VERIFICATION.md`, `docs/AUDIO_VERIFICATION.md`, `docs/TAURI_INTEGRATION_VERIFICATION.md`, `docs/FRONTEND_INTEGRATION.md`, `docs/ASR_PIPELINE.md`, and `docs/TTS_PIPELINE.md`.
 
+
+
+## Recent additions (v0.1)
+
+Five features landed since the 2026-09-23 baseline:
+
+- **Model download UI** (`Settings` → `Models` card). Shows disk status per model
+  (Ready / Not downloaded / Corrupted / Downloading with progress bar) and lets you
+  re-download corrupted files manually. Cached under
+  `%LOCALAPPDATA%/QMeetily/models/`. See `docs/USER_GUIDE.md` → *Managing models*.
+- **Meeting export** from `Library`. Dropdown menu per meeting row, four formats:
+  `Plain text (.txt)`, `SubRip subtitles (.srt)`, `JSON (.json)`,
+  `Markdown (.md)`. Native save dialog + file write via `@tauri-apps/plugin-fs`.
+  See `docs/USER_GUIDE.md` → *Exporting a meeting*.
+- **Real model load events**. The Settings status badges (`ASR`, `LLM`) now light up
+  live as `model-loading` / `model-loaded` / `model-load-failed` events fire from the
+  sidecar, instead of just reflecting disk state.
+- **Inner-helper refactor for tests**. `export_meeting` and `list_model_status`
+  delegate to `pub(crate)` `export_meeting_inner(db, id, format)` and
+  `list_model_status_inner(models_dir)` so tests can hit the logic without a
+  live `AppState`.
+- **UI a11y polish**: focus-visible rings on every native button and
+  `[role="button"]`, `aria-live` regions on recording status / model-load events /
+  download progress, keyboard navigation on meeting cards.
 ## How to run
 
 ### Prerequisites
