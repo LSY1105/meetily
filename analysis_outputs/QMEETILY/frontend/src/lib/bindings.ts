@@ -25,6 +25,7 @@ export const commands = {
 	getAvailableModels: () => typedError<ModelDef[], string>(__TAURI_INVOKE("get_available_models")),
 	listModelStatus: () => typedError<ModelInfo[], string>(__TAURI_INVOKE("list_model_status")),
 	downloadModel: (modelName: string) => typedError<null, string>(__TAURI_INVOKE("download_model", { modelName })),
+	exportMeeting: (meetingId: number, format: string) => typedError<string, string>(__TAURI_INVOKE("export_meeting", { meetingId, format })),
 };
 
 /* Types */

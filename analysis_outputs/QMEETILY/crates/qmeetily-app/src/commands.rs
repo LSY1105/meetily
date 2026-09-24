@@ -311,6 +311,169 @@ pub async fn generate_summary(
 
 
 
+#[tauri::command]
+#[specta::specta]
+pub async fn export_meeting(
+    state: State<'_, AppState>,
+    meeting_id: i64,
+    format: String,
+) -> Result<String> {
+    let meeting = state
+        .db()
+        .get_meeting(meeting_id)
+        .await?
+        .ok_or_else(|| AppError::Other(anyhow!("meeting {meeting_id} not found")))?;
+    let mut transcripts = state.db().get_meeting_transcripts(meeting_id).await?;
+    transcripts.retain(|t| !t.is_partial);
+    transcripts.sort_by_key(|t| t.sequence_id);
+
+    let summary: Option<String> = sqlx::query_scalar(
+        "SELECT summary_markdown FROM summaries \
+         WHERE meeting_id = ? ORDER BY created_at DESC LIMIT 1",
+    )
+    .bind(meeting_id)
+    .fetch_optional(state.db().pool())
+    .await
+    .map_err(AppError::Database)?;
+
+    let content = match format.as_str() {
+        "txt" => render_txt(&meeting, &transcripts, summary.as_deref()),
+        "srt" => render_srt(&transcripts),
+        "json" => {
+            let payload = serde_json::json!({
+                "meeting": serde_json::to_value(&meeting).map_err(AppError::Serde)?,
+                "transcripts": serde_json::to_value(&transcripts).map_err(AppError::Serde)?,
+                "summary": summary,
+            });
+            serde_json::to_string_pretty(&payload).map_err(AppError::Serde)?
+        }
+        "md" => render_md(&meeting, &transcripts, summary.as_deref()),
+        other => {
+            return Err(AppError::Other(anyhow!(
+                "unknown export format: {other}; expected one of txt, srt, json, md"
+            )))
+        }
+    };
+    Ok(content)
+}
+
+fn ms_to_srt_time(ms: i32) -> String {
+    let total = ms.max(0) as u64;
+    format!(
+        "{:02}:{:02}:{:02},{:03}",
+        total / 3_600_000,
+        (total % 3_600_000) / 60_000,
+        (total % 60_000) / 1_000,
+        total % 1_000,
+    )
+}
+
+fn speaker(t: &crate::db::transcripts::Transcript) -> &str {
+    t.speaker_label.as_deref().unwrap_or("Speaker")
+}
+
+fn render_txt(
+    meeting: &crate::db::meetings::Meeting,
+    transcripts: &[crate::db::transcripts::Transcript],
+    summary: Option<&str>,
+) -> String {
+    use std::fmt::Write;
+    let mut out = String::new();
+    let _ = writeln!(out, "{}", meeting.title);
+    let _ = writeln!(
+        out,
+        "Date: {}",
+        meeting.started_at.format("%Y-%m-%d %H:%M:%S UTC")
+    );
+    if let Some(end) = meeting.ended_at {
+        let dur_min = (end - meeting.started_at).num_minutes().max(0);
+        let _ = writeln!(out, "Duration: {dur_min} min");
+    }
+    if let Some(lang) = &meeting.language_primary {
+        let _ = writeln!(out, "Language: {lang}");
+    }
+    if !meeting.participants.is_empty() {
+        let _ = writeln!(out, "Participants: {}", meeting.participants.join(", "));
+    }
+    let _ = writeln!(out);
+    let _ = writeln!(out, "=== Transcript ===");
+    for t in transcripts {
+        let mins = t.start_ms / 60_000;
+        let secs = (t.start_ms.abs() % 60_000) / 1_000;
+        let text = t.rewritten_text.as_deref().unwrap_or(&t.text);
+        let _ = writeln!(out, "[{mins:02}:{secs:02}] {}: {}", speaker(t), text);
+    }
+    if let Some(s) = summary {
+        let _ = writeln!(out);
+        let _ = writeln!(out, "=== Summary ===");
+        let _ = writeln!(out, "{s}");
+    }
+    out
+}
+
+fn render_srt(transcripts: &[crate::db::transcripts::Transcript]) -> String {
+    use std::fmt::Write;
+    let mut out = String::new();
+    for (i, t) in transcripts.iter().enumerate() {
+        let _ = writeln!(out, "{}", i + 1);
+        let _ = writeln!(
+            out,
+            "{} --> {}",
+            ms_to_srt_time(t.start_ms),
+            ms_to_srt_time(t.end_ms)
+        );
+        let text = t.rewritten_text.as_deref().unwrap_or(&t.text);
+        let _ = writeln!(out, "{}: {}", speaker(t), text);
+        let _ = writeln!(out);
+    }
+    out
+}
+
+fn render_md(
+    meeting: &crate::db::meetings::Meeting,
+    transcripts: &[crate::db::transcripts::Transcript],
+    summary: Option<&str>,
+) -> String {
+    use std::fmt::Write;
+    let mut out = String::new();
+    let _ = writeln!(out, "# {}", meeting.title);
+    let _ = writeln!(out);
+    let _ = writeln!(
+        out,
+        "- **Date**: {}",
+        meeting.started_at.format("%Y-%m-%d %H:%M:%S UTC")
+    );
+    if let Some(end) = meeting.ended_at {
+        let dur_min = (end - meeting.started_at).num_minutes().max(0);
+        let _ = writeln!(out, "- **Duration**: {dur_min} min");
+    }
+    if let Some(lang) = &meeting.language_primary {
+        let _ = writeln!(out, "- **Language**: {lang}");
+    }
+    if !meeting.participants.is_empty() {
+        let _ = writeln!(out, "- **Participants**: {}", meeting.participants.join(", "));
+    }
+    let _ = writeln!(out);
+    let _ = writeln!(out, "## Transcript");
+    let _ = writeln!(out);
+    for t in transcripts {
+        let mins = t.start_ms / 60_000;
+        let secs = (t.start_ms.abs() % 60_000) / 1_000;
+        let text = t.rewritten_text.as_deref().unwrap_or(&t.text);
+        let _ = writeln!(out, "**`[{mins:02}:{secs:02}] {sp}`**: {text}", sp = speaker(t));
+        let _ = writeln!(out);
+    }
+    if let Some(s) = summary {
+        let _ = writeln!(out, "## Summary");
+        let _ = writeln!(out);
+        let _ = writeln!(out, "{s}");
+    }
+    out
+}
+
+
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -339,6 +502,7 @@ mod tests {
             get_available_models,
             list_model_status,
             download_model,
+            export_meeting,
         ];
     }
 }
