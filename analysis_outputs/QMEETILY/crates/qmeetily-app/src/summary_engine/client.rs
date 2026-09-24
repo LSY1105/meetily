@@ -21,6 +21,7 @@ use tokio_util::sync::CancellationToken;
 
 use super::models::{get_model_by_name, ModelDef};
 use super::sidecar::SidecarManager;
+use tauri::{AppHandle, Emitter};
 
 // ============================================================================
 // Request/Response Types
@@ -75,11 +76,24 @@ pub enum Response {
 pub struct LlmClient {
     sidecar: Arc<SidecarManager>,
     data_dir: PathBuf,
+    app: Option<AppHandle>,
+    model_label: Option<String>,
 }
 
 impl LlmClient {
     pub fn new(sidecar: Arc<SidecarManager>, data_dir: PathBuf) -> Self {
-        Self { sidecar, data_dir }
+        Self {
+            sidecar,
+            data_dir,
+            app: None,
+            model_label: None,
+        }
+    }
+
+    pub fn with_app(mut self, app: AppHandle, model_label: String) -> Self {
+        self.app = Some(app);
+        self.model_label = Some(model_label);
+        self
     }
 
     /// Ping the sidecar to verify it's healthy.
@@ -104,7 +118,31 @@ impl LlmClient {
         let sampling = &model.sampling;
 
         // Start sidecar if not already running, with this model loaded.
-        self.sidecar.ensure_running(model_path).await?;
+        let label = self
+            .model_label
+            .clone()
+            .unwrap_or_else(|| model.name.clone());
+        if let Some(app) = &self.app {
+            let _ = app.emit("model-loading", &label);
+        }
+        let load_result = self.sidecar.ensure_running(model_path).await;
+        if let Some(app) = &self.app {
+            match &load_result {
+                Ok(()) => {
+                    let _ = app.emit("model-loaded", &label);
+                }
+                Err(e) => {
+                    let _ = app.emit(
+                        "model-load-failed",
+                        serde_json::json!({
+                            "model_name": label,
+                            "error": e.to_string(),
+                        }),
+                    );
+                }
+            }
+        }
+        load_result?;
 
         let req = Request::Generate {
             prompt,

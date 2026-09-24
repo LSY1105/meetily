@@ -1,12 +1,51 @@
 "use client";
 
-import { Mic, Cpu, CircleDot } from "lucide-react";
+import { useEffect, useState } from "react";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { Mic, Cpu, CircleDot, Loader2, AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ReactNode } from "react";
 import type { AppInfo } from "@/lib/bindings";
 
+interface ModelLoadFailed {
+  model_name: string;
+  error: string;
+}
+
 export function SidecarStatus({ info }: { info: AppInfo | null }) {
+  const [loadingName, setLoadingName] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<ModelLoadFailed | null>(null);
+
+  useEffect(() => {
+    const unlistenLoading: Promise<UnlistenFn> = listen<string>(
+      "model-loading",
+      (e) => {
+        setLoadingName(e.payload);
+        setLoadError(null);
+      }
+    );
+    const unlistenLoaded: Promise<UnlistenFn> = listen<string>(
+      "model-loaded",
+      () => {
+        setLoadingName(null);
+        setLoadError(null);
+      }
+    );
+    const unlistenFailed: Promise<UnlistenFn> = listen<ModelLoadFailed>(
+      "model-load-failed",
+      (e) => {
+        setLoadingName(null);
+        setLoadError(e.payload);
+      }
+    );
+    return () => {
+      unlistenLoading.then((f) => f());
+      unlistenLoaded.then((f) => f());
+      unlistenFailed.then((f) => f());
+    };
+  }, []);
+
   if (!info) {
     return (
       <Tooltip>
@@ -61,6 +100,33 @@ export function SidecarStatus({ info }: { info: AppInfo | null }) {
             : "Loading summarization model..."
         }
       />
+      {loadingName && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge variant="outline" className="gap-1 text-muted-foreground">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              Loading {loadingName}
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Loading model {loadingName} into the sidecar.</p>
+          </TooltipContent>
+        </Tooltip>
+      )}
+      {loadError && !loadingName && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge variant="destructive" className="gap-1">
+              <AlertTriangle className="w-3 h-3" />
+              Load failed
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p className="font-medium">{loadError.model_name}</p>
+            <p className="text-xs opacity-80">{loadError.error}</p>
+          </TooltipContent>
+        </Tooltip>
+      )}
       {info.is_recording && (
         <Badge variant="destructive" className="gap-1">
           <span className="w-1.5 h-1.5 rounded-full bg-recording animate-pulse" />

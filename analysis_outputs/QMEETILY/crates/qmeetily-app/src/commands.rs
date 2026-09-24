@@ -282,7 +282,8 @@ pub async fn generate_summary(
     let mgr = SidecarManager::new(state.config().data_dir.clone())
         .map_err(AppError::Other)?;
     let mgr = std::sync::Arc::new(mgr);
-    let client = LlmClient::new(mgr.clone(), state.config().data_dir.clone());
+    let client = LlmClient::new(mgr.clone(), state.config().data_dir.clone())
+        .with_app(app.clone(), state.config().preferred_llm_model.clone());
 
     let _ = app.emit("summary-progress", "");
     let model_name = state.config().preferred_llm_model.clone();
