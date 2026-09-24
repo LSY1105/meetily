@@ -11,6 +11,7 @@ pub mod schema;
 pub mod meetings;
 pub mod transcripts;
 pub mod decisions;
+pub mod summaries;
 
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::SqlitePool;

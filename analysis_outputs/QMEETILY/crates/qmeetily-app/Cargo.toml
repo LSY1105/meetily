@@ -64,4 +64,5 @@ name = "audio_smoke_test"
 [[example]]
 name = "asr_smoke_test"
 
-
+[dev-dependencies]
+tempfile = "3"

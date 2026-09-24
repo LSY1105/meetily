@@ -5,6 +5,7 @@
 //! deleted (it was tightly coupled to meetily's `State<ModelManagerState>`)
 //! and replaced with these slimmer wrappers that use `Arc<AppState>`.
 
+use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::anyhow;
@@ -225,11 +226,7 @@ pub async fn get_available_models() -> Result<Vec<ModelDef>> {
 pub async fn list_model_status(
     state: State<'_, AppState>,
 ) -> Result<Vec<crate::summary_engine::model_manager::ModelInfo>> {
-    use crate::summary_engine::model_manager::ModelManager;
-    let mgr = ModelManager::new_with_models_dir(Some(state.config().models_dir))
-        .map_err(AppError::Other)?;
-    mgr.scan_models().await.map_err(AppError::Other)?;
-    Ok(mgr.list_models().await)
+    list_model_status_inner(&state.config().models_dir).await
 }
 
 #[tauri::command]
@@ -309,9 +306,6 @@ pub async fn generate_summary(
     Ok(summary)
 }
 
-
-
-
 #[tauri::command]
 #[specta::specta]
 pub async fn export_meeting(
@@ -319,25 +313,45 @@ pub async fn export_meeting(
     meeting_id: i64,
     format: String,
 ) -> Result<String> {
-    let meeting = state
-        .db()
+    export_meeting_inner(state.db(), meeting_id, &format).await
+}
+
+
+// =====================================================================
+// Inner helpers (extracted from #[tauri::command] wrappers in #2 to make
+// the public commands trivially mockable from tests). Each helper takes
+// only its core dependencies -- no `State<'_, AppState>`.
+//
+// `pub(crate)` so the `#[cfg(test)]` modules below can reach them via
+// `super::*`. They are NOT part of the Tauri IPC surface.
+// =====================================================================
+
+pub(crate) async fn list_model_status_inner(
+    models_dir: &Path,
+) -> Result<Vec<crate::summary_engine::model_manager::ModelInfo>> {
+    use crate::summary_engine::model_manager::ModelManager;
+    let mgr = ModelManager::new_with_models_dir(Some(models_dir.to_path_buf()))
+        .map_err(AppError::Other)?;
+    mgr.scan_models().await.map_err(AppError::Other)?;
+    Ok(mgr.list_models().await)
+}
+
+pub(crate) async fn export_meeting_inner(
+    db: &crate::db::Db,
+    meeting_id: i64,
+    format: &str,
+) -> Result<String> {
+    let meeting = db
         .get_meeting(meeting_id)
         .await?
         .ok_or_else(|| AppError::Other(anyhow!("meeting {meeting_id} not found")))?;
-    let mut transcripts = state.db().get_meeting_transcripts(meeting_id).await?;
+    let mut transcripts = db.get_meeting_transcripts(meeting_id).await?;
     transcripts.retain(|t| !t.is_partial);
     transcripts.sort_by_key(|t| t.sequence_id);
 
-    let summary: Option<String> = sqlx::query_scalar(
-        "SELECT summary_markdown FROM summaries \
-         WHERE meeting_id = ? ORDER BY created_at DESC LIMIT 1",
-    )
-    .bind(meeting_id)
-    .fetch_optional(state.db().pool())
-    .await
-    .map_err(AppError::Database)?;
+    let summary = crate::db::summaries::get_latest(db.pool(), meeting_id).await?;
 
-    let content = match format.as_str() {
+    let content = match format {
         "txt" => render_txt(&meeting, &transcripts, summary.as_deref()),
         "srt" => render_srt(&transcripts),
         "json" => {
@@ -473,8 +487,10 @@ fn render_md(
 }
 
 
-
-
+// =====================================================================
+// Compile-time commands list (compile-time lock on the public Tauri IPC
+// surface). Keep this block in sync with `lib.rs::collect_commands![]`.
+// =====================================================================
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -505,5 +521,337 @@ mod tests {
             download_model,
             export_meeting,
         ];
+    }
+}
+
+
+// =====================================================================
+// Pure-function tests for the render helpers (T1-T6).
+// =====================================================================
+#[cfg(test)]
+#[allow(clippy::too_many_arguments)]
+mod export_tests {
+    use super::*;
+    use chrono::{TimeZone, Utc};
+
+    fn ts(y: i32, m: u32, d: u32, h: u32, mi: u32, s: u32) -> chrono::DateTime<Utc> {
+        Utc.with_ymd_and_hms(y, m, d, h, mi, s).unwrap()
+    }
+
+    fn meeting_full() -> Meeting {
+        Meeting {
+            id: 1,
+            title: "Q4 Planning Sync".to_string(),
+            started_at: ts(2026, 9, 24, 10, 0, 0),
+            ended_at: Some(ts(2026, 9, 24, 10, 45, 0)),
+            language_primary: Some("zh".to_string()),
+            audio_path: None,
+            participants: vec!["Alice".to_string(), "Bob".to_string()],
+        }
+    }
+
+    fn meeting_minimal() -> Meeting {
+        Meeting {
+            id: 2,
+            title: "Quick Check".to_string(),
+            started_at: ts(2026, 9, 24, 9, 0, 0),
+            ended_at: None,
+            language_primary: None,
+            audio_path: None,
+            participants: vec![],
+        }
+    }
+
+    fn transcript(
+        seq: i64,
+        start_ms: i32,
+        end_ms: i32,
+        text: &str,
+        rewritten: Option<&str>,
+        speaker: Option<&str>,
+    ) -> Transcript {
+        Transcript {
+            id: seq,
+            meeting_id: 1,
+            sequence_id: seq,
+            start_ms,
+            end_ms,
+            text: text.to_string(),
+            rewritten_text: rewritten.map(String::from),
+            language: Some("zh".to_string()),
+            speaker_label: speaker.map(String::from),
+            confidence: Some(0.95),
+            is_partial: false,
+            created_at: ts(2026, 9, 24, 10, 0, 0),
+        }
+    }
+
+    // -------- T1 --------
+    #[test]
+    fn render_txt_full_meeting_produces_expected_layout() {
+        let m = meeting_full();
+        let transcripts = vec![transcript(
+            1, 0, 5_000, "raw hello", Some("polished hello"), Some("Alice"),
+        )];
+        let summary = Some("- bullet 1\n- bullet 2");
+        let out = render_txt(&m, &transcripts, summary);
+        assert!(out.starts_with("Q4 Planning Sync\n"), "starts with title, got: {out:?}");
+        assert!(out.contains("Date: 2026-09-24 10:00:00 UTC"));
+        assert!(out.contains("Duration: 45 min"));
+        assert!(out.contains("Language: zh"));
+        assert!(out.contains("Participants: Alice, Bob"));
+        assert!(out.contains("=== Transcript ==="));
+        assert!(
+            out.contains("[00:00] Alice: polished hello"),
+            "rewritten_text should win over text, got: {out:?}"
+        );
+        assert!(out.contains("=== Summary ==="));
+        assert!(out.contains("- bullet 1"));
+    }
+
+    // -------- T2 --------
+    #[test]
+    fn render_txt_minimal_meeting_omits_optional_sections() {
+        let m = meeting_minimal();
+        let transcripts = vec![transcript(1, 0, 1_000, "hello", None, None)];
+        let out = render_txt(&m, &transcripts, None);
+        assert!(!out.contains("Duration:"));
+        assert!(!out.contains("Language:"));
+        assert!(!out.contains("Participants:"));
+        assert!(!out.contains("=== Summary ==="));
+        // speaker_label=None falls back to literal "Speaker".
+        assert!(out.contains("Speaker: hello"));
+    }
+
+    // -------- T3 --------
+    #[test]
+    fn render_txt_prefers_rewritten_text_when_present() {
+        let m = meeting_minimal();
+        let t = transcript(1, 0, 1_000, "raw text", Some("polished text"), None);
+        let out = render_txt(&m, std::slice::from_ref(&t), None);
+        assert!(out.contains("polished text"));
+        assert!(!out.contains("raw text"));
+    }
+
+    // -------- T4 --------
+    #[test]
+    fn render_srt_emits_indexed_blocks_in_time_order() {
+        let transcripts = vec![
+            transcript(1, 1_000, 3_500, "first", None, Some("Alice")),
+            transcript(2, 4_000, 6_000, "second", None, Some("Bob")),
+        ];
+        let out = render_srt(&transcripts);
+        assert!(out.contains("1\n00:00:01,000 --> 00:00:03,500\nAlice: first\n\n"));
+        assert!(out.contains("2\n00:00:04,000 --> 00:00:06,000\nBob: second\n\n"));
+        assert!(out.starts_with("1\n"));
+        assert!(out.ends_with("\n\n"), "each SRT block must end with a blank line, got: {out:?}");
+    }
+
+    // -------- T5 --------
+    #[test]
+    fn render_md_starts_with_h1_and_meta_list() {
+        let m = meeting_full();
+        let transcripts = vec![transcript(1, 65_000, 70_000, "x", None, Some("Bob"))];
+        let out = render_md(&m, &transcripts, Some("summary body"));
+        assert!(out.starts_with("# Q4 Planning Sync\n"));
+        assert!(out.contains("- **Date**: 2026-09-24 10:00:00 UTC"));
+        assert!(out.contains("- **Duration**: 45 min"));
+        assert!(out.contains("## Transcript"));
+        assert!(out.contains("**[01:05] Bob**"));
+        assert!(out.contains("## Summary"));
+    }
+
+    // -------- T6 --------
+    #[test]
+    fn ms_to_srt_time_handles_negative_zero_and_large() {
+        assert_eq!(ms_to_srt_time(0), "00:00:00,000");
+        assert_eq!(ms_to_srt_time(999), "00:00:00,999");
+        // Negative values clamp to zero (defensive against clock skew).
+        assert_eq!(ms_to_srt_time(-500), "00:00:00,000");
+        assert_eq!(ms_to_srt_time(i32::MIN), "00:00:00,000");
+        // 1h23m45s678ms.
+        let v = 1 * 3_600_000 + 23 * 60_000 + 45 * 1_000 + 678;
+        assert_eq!(ms_to_srt_time(v), "01:23:45,678");
+    }
+}
+
+
+// =====================================================================
+// DB-fixture tests (T7-T10). Requires the AGENTS.md DB exception granted
+// for test fixtures only; each test creates a fresh sqlite file under a
+// tempdir (no production DB touched, no tokens spent on real data).
+// =====================================================================
+#[cfg(test)]
+mod export_db_tests {
+    use super::*;
+    use crate::db::meetings::NewMeeting;
+    use crate::db::transcripts::NewTranscript;
+    use tempfile::TempDir;
+
+    // Bring with_ymd_and_hms into scope for chrono::Utc below.
+    use chrono::TimeZone;
+
+    /// Open an ephemeral SQLite DB inside a TempDir. Db::open runs the
+    /// schema migration, so all tables exist on return. The file is
+    /// cleaned up automatically when the TempDir drops.
+    async fn open_temp_db() -> (TempDir, crate::db::Db) {
+        let dir = TempDir::new().expect("tempdir");
+        let path = dir.path().join("qmeetily_test.sqlite");
+        let db = crate::db::Db::open(&path).await.expect("open db");
+        (dir, db)
+    }
+
+    async fn seed_meeting(db: &crate::db::Db) -> i64 {
+        let started_at = chrono::Utc
+            .with_ymd_and_hms(2026, 9, 24, 10, 0, 0)
+            .unwrap();
+        let id = db
+            .create_meeting(&NewMeeting {
+                title: "Test Meeting".to_string(),
+                started_at,
+                language_primary: Some("zh".to_string()),
+                audio_path: None,
+                participants: vec!["Alice".to_string(), "Bob".to_string()],
+            })
+            .await
+            .expect("create meeting");
+
+        let segments = [
+            NewTranscript {
+                meeting_id: id,
+                sequence_id: 1,
+                start_ms: 0,
+                end_ms: 3_500,
+                text: "hello raw".to_string(),
+                rewritten_text: Some("polished hello".to_string()),
+                language: Some("zh".to_string()),
+                speaker_label: Some("Alice".to_string()),
+                confidence: Some(0.9),
+                is_partial: false,
+            },
+            NewTranscript {
+                meeting_id: id,
+                sequence_id: 2,
+                start_ms: 4_000,
+                end_ms: 7_000,
+                text: "raw only".to_string(),
+                rewritten_text: None,
+                language: Some("en".to_string()),
+                speaker_label: Some("Bob".to_string()),
+                confidence: Some(0.8),
+                is_partial: false,
+            },
+        ];
+        for t in &segments {
+            db.insert_transcript(t).await.expect("insert transcript");
+        }
+
+        sqlx::query(
+            "INSERT INTO summaries (meeting_id, summary_markdown, language, model, created_at)
+             VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind(id)
+        .bind("- bullet 1\n- bullet 2")
+        .bind("zh")
+        .bind("test-model")
+        .bind(chrono::Utc::now().timestamp_millis())
+        .execute(db.pool())
+        .await
+        .expect("insert summary");
+
+        id
+    }
+
+    // -------- T7 --------
+    #[tokio::test]
+    async fn export_meeting_inner_writes_all_four_formats() {
+        let (_dir, db) = open_temp_db().await;
+        let meeting_id = seed_meeting(&db).await;
+
+        for fmt in ["txt", "srt", "json", "md"] {
+            let content = export_meeting_inner(&db, meeting_id, fmt)
+                .await
+                .unwrap_or_else(|e| panic!("format {fmt} failed: {e}"));
+            assert!(!content.is_empty(), "{fmt} returned empty content");
+        }
+
+        let txt = export_meeting_inner(&db, meeting_id, "txt")
+            .await
+            .unwrap();
+        assert!(txt.contains("Test Meeting"));
+        assert!(txt.contains("polished hello"), "txt prefers rewritten_text");
+
+        let srt = export_meeting_inner(&db, meeting_id, "srt")
+            .await
+            .unwrap();
+        assert!(srt.contains("00:00:00,000 --> 00:00:03,500"));
+        assert!(srt.contains("00:00:04,000 --> 00:00:07,000"));
+
+        let json = export_meeting_inner(&db, meeting_id, "json")
+            .await
+            .unwrap();
+        assert!(json.contains("\"title\": \"Test Meeting\""));
+        assert!(
+            json.contains("- bullet 1"),
+            "summary should land inside the JSON payload, got: {json}"
+        );
+
+        let md = export_meeting_inner(&db, meeting_id, "md")
+            .await
+            .unwrap();
+        assert!(md.starts_with("# Test Meeting\n"));
+        assert!(md.contains("## Summary"));
+    }
+
+    // -------- T8 --------
+    #[tokio::test]
+    async fn export_meeting_inner_errors_on_unknown_format() {
+        let (_dir, db) = open_temp_db().await;
+        let meeting_id = seed_meeting(&db).await;
+        let err = export_meeting_inner(&db, meeting_id, "xml")
+            .await
+            .expect_err("xml must be rejected");
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("unknown export format: xml"),
+            "error should name the bad format, got: {msg}"
+        );
+    }
+
+    // -------- T9 --------
+    #[tokio::test]
+    async fn export_meeting_inner_errors_when_meeting_missing() {
+        let (_dir, db) = open_temp_db().await;
+        let err = export_meeting_inner(&db, 99_999, "txt")
+            .await
+            .expect_err("missing meeting must error");
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("meeting 99999 not found"),
+            "error should name the missing meeting id, got: {msg}"
+        );
+    }
+
+    // -------- T10 --------
+    #[tokio::test]
+    async fn list_model_status_inner_reads_models_from_tempdir() {
+        let dir = TempDir::new().expect("tempdir");
+        let result = list_model_status_inner(dir.path())
+            .await
+            .expect("scan on empty tempdir should succeed");
+        // Static catalog must be returned; on empty disk every model must
+        // report NotDownloaded. No fabricated .gguf files required.
+        assert!(!result.is_empty(), "static catalog should be returned");
+        for m in &result {
+            assert!(
+                matches!(
+                    m.status,
+                    crate::summary_engine::model_manager::ModelStatus::NotDownloaded
+                ),
+                "model {} without file should be NotDownloaded, got {:?}",
+                m.name,
+                m.status
+            );
+        }
     }
 }
