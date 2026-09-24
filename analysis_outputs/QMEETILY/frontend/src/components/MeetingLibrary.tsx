@@ -120,6 +120,7 @@ export function MeetingLibrary({ onOpen }: MeetingLibraryProps) {
       <div className="flex gap-2">
         <Input
           placeholder="Search meetings (e.g. 'deadline', '张伟', 'Q4 预算')..."
+          aria-label="Search meetings"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && search()}
@@ -127,13 +128,19 @@ export function MeetingLibrary({ onOpen }: MeetingLibraryProps) {
       </div>
 
       {searchHits.length > 0 ? (
-        <div className="space-y-2">
-          <h2 className="font-semibold">{searchHits.length} search results</h2>
+        <div className="space-y-2" aria-busy={loading}>
+          <h2 aria-live="polite" aria-atomic="true" className="font-semibold">
+            {searchHits.length} search results
+          </h2>
           {searchHits.map((hit) => (
             <Card
               key={hit.transcript_id}
-              className="p-4 cursor-pointer hover:bg-accent transition-colors"
+              role="button"
+              tabIndex={0}
+              aria-label={`Open meeting ${hit.meeting_id}`}
+              className="p-4 cursor-pointer hover:bg-accent transition-colors focus:outline-none"
               onClick={() => onOpen(hit.meeting_id)}
+              onKeyDown={(e) => activateOnKey(e, () => onOpen(hit.meeting_id))}
             >
               <div className="text-xs text-muted-foreground mb-1">
                 Meeting #{hit.meeting_id} · sequence {hit.sequence_id}
@@ -144,7 +151,9 @@ export function MeetingLibrary({ onOpen }: MeetingLibraryProps) {
         </div>
       ) : (
         <div className="space-y-2">
-          <h2 className="font-semibold">{meetings.length} meetings</h2>
+          <h2 aria-live="polite" aria-atomic="true" className="font-semibold">
+            {meetings.length} meetings
+          </h2>
           {meetings.length === 0 && (
             <div className="text-sm text-muted-foreground p-8 text-center border border-dashed rounded">
               No meetings yet. Start a recording to populate this view.
@@ -153,8 +162,12 @@ export function MeetingLibrary({ onOpen }: MeetingLibraryProps) {
           {meetings.map((m) => (
             <Card
               key={m.id}
-              className="p-4 cursor-pointer hover:bg-accent transition-colors"
+              role="button"
+              tabIndex={0}
+              aria-label={`Open meeting ${m.title}`}
+              className="p-4 cursor-pointer hover:bg-accent transition-colors focus:outline-none"
               onClick={() => onOpen(m.id)}
+              onKeyDown={(e) => activateOnKey(e, () => onOpen(m.id))}
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
@@ -168,6 +181,7 @@ export function MeetingLibrary({ onOpen }: MeetingLibraryProps) {
                 <div
                   className="flex items-center gap-2 flex-shrink-0"
                   onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
                 >
                   {m.language_primary && (
                     <span className="text-xs px-2 py-1 rounded bg-primary/10 text-primary">
@@ -206,6 +220,14 @@ export function MeetingLibrary({ onOpen }: MeetingLibraryProps) {
     </div>
   );
 }
+
+function activateOnKey(e: React.KeyboardEvent, fn: () => void) {
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    fn();
+  }
+}
+
 function highlight(text: string, query: string) {
   if (!query.trim()) return text;
   const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

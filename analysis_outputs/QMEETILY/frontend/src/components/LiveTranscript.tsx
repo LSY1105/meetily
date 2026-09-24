@@ -142,7 +142,7 @@ export function LiveTranscript({ currentMeetingId, onMeetingStart, onMeetingEnd 
           </div>
         ) : (
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-recording-soft border border-recording-border rounded-md">
+            <div role="status" aria-live="polite" className="flex items-center gap-2 px-3 py-1.5 bg-recording-soft border border-recording-border rounded-md">
               <span className="inline-block w-3 h-3 rounded-full bg-recording animate-pulse" />
               <span className="font-medium text-recording-fg">Recording</span>
             </div>

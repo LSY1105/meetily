@@ -95,13 +95,15 @@ export function ModelDownloadCard() {
   return (
     <Card className="p-4">
       <div className="flex items-center gap-2 mb-3">
-        <HardDrive className="w-4 h-4 text-muted-foreground" />
+        <HardDrive className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
         <h2 className="font-semibold">Models</h2>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-3" aria-busy={models.length === 0}>
         {models.length === 0 && (
-          <div className="text-sm text-muted-foreground">Loading model list…</div>
+          <div role="status" aria-live="polite" className="text-sm text-muted-foreground">
+            Loading model list…
+          </div>
         )}
         {models.map((m) => (
           <ModelRow
@@ -168,7 +170,14 @@ function ModelRow({
 
       {isDownloading && (
         <div className="space-y-1">
-          <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+          <div
+            role="progressbar"
+            aria-label={`Downloading ${display_name || name}`}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(pct)}
+            className="h-1.5 w-full bg-muted rounded-full overflow-hidden"
+          >
             <div
               className="h-full bg-primary transition-all"
               style={{ width: `${pct}%` }}
@@ -193,7 +202,7 @@ function StatusBadge({ status }: { status: ModelInfo["status"] }) {
         <Tooltip>
           <TooltipTrigger asChild>
             <span className="inline-flex items-center gap-1 text-xs text-success">
-              <CheckCircle2 className="w-3.5 h-3.5" />
+              <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
               Ready
             </span>
           </TooltipTrigger>
@@ -205,7 +214,7 @@ function StatusBadge({ status }: { status: ModelInfo["status"] }) {
     case "downloading":
       return (
         <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
           Downloading
         </span>
       );
@@ -218,7 +227,7 @@ function StatusBadge({ status }: { status: ModelInfo["status"] }) {
         <Tooltip>
           <TooltipTrigger asChild>
             <span className="inline-flex items-center gap-1 text-xs text-warning">
-              <AlertTriangle className="w-3.5 h-3.5" />
+              <AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" />
               Corrupted
             </span>
           </TooltipTrigger>
@@ -235,7 +244,7 @@ function StatusBadge({ status }: { status: ModelInfo["status"] }) {
         <Tooltip>
           <TooltipTrigger asChild>
             <span className="inline-flex items-center gap-1 text-xs text-destructive">
-              <AlertTriangle className="w-3.5 h-3.5" />
+              <AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" />
               Error
             </span>
           </TooltipTrigger>
